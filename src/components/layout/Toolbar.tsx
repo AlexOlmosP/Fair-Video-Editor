@@ -18,13 +18,13 @@ export function Toolbar({ onToggleProperties, showProperties }: ToolbarProps) {
 
   return (
     <>
-      <div className="h-12 bg-zinc-900 border-b border-zinc-800 flex items-center px-4 gap-4 flex-shrink-0">
+      <div className="h-12 bg-[var(--bg-secondary)] border-b border-[var(--border-color)] flex items-center px-4 gap-4 flex-shrink-0">
         {/* Logo / Brand */}
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded bg-blue-600 flex items-center justify-center text-xs font-bold">
             VE
           </div>
-          <span className="text-sm font-medium text-zinc-300">{projectName}</span>
+          <span className="text-sm font-medium text-[var(--text-secondary)]">{projectName}</span>
         </div>
 
         <div className="w-px h-6 bg-zinc-700" />
@@ -34,7 +34,7 @@ export function Toolbar({ onToggleProperties, showProperties }: ToolbarProps) {
           <button
             onClick={() => useHistoryStore.getState().undo()}
             disabled={!hasPast}
-            className="p-2 rounded hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="p-2 rounded hover:bg-[var(--bg-tertiary)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             title="Undo (Ctrl+Z)"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -44,7 +44,7 @@ export function Toolbar({ onToggleProperties, showProperties }: ToolbarProps) {
           <button
             onClick={() => useHistoryStore.getState().redo()}
             disabled={!hasFuture}
-            className="p-2 rounded hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="p-2 rounded hover:bg-[var(--bg-tertiary)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             title="Redo (Ctrl+Shift+Z)"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -58,7 +58,7 @@ export function Toolbar({ onToggleProperties, showProperties }: ToolbarProps) {
         {/* Toggle Properties Panel */}
         <button
           onClick={onToggleProperties}
-          className={`p-2 rounded transition-colors ${showProperties ? 'bg-zinc-700 text-white' : 'hover:bg-zinc-800 text-zinc-400'}`}
+          className={`p-2 rounded transition-colors ${showProperties ? 'bg-zinc-700 text-white' : 'hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)]'}`}
           title="Toggle Properties Panel"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

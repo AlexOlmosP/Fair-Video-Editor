@@ -76,7 +76,7 @@ export function KeyframeStrip({ clipId, property }: KeyframeStripProps) {
   const clipDuration = clip.outPoint - clip.inPoint;
 
   return (
-    <div className="relative h-3 bg-zinc-800 rounded mt-0.5">
+    <div className="relative h-3 bg-[var(--bg-tertiary)] rounded mt-0.5">
       {keyframes.map((kf) => {
         const pos = clipDuration > 0 ? (kf.time / clipDuration) * 100 : 0;
         return (

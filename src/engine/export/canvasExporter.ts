@@ -48,6 +48,8 @@ function seekVideo(video: HTMLVideoElement, time: number): Promise<void> {
 interface ExportOptions {
   width: number;
   height: number;
+  projectWidth: number;
+  projectHeight: number;
   frameRate: number;
   backgroundColor: string;
   clips: Record<string, Clip>;
@@ -66,6 +68,8 @@ function renderFrameToCanvas(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
+  projectWidth: number,
+  projectHeight: number,
   backgroundColor: string,
   time: number,
   clips: Record<string, Clip>,
@@ -75,6 +79,9 @@ function renderFrameToCanvas(
 ) {
   ctx.fillStyle = backgroundColor;
   ctx.fillRect(0, 0, width, height);
+
+  // Uniform scale for mapping positions from project space to export canvas
+  const uScale = Math.min(width / projectWidth, height / projectHeight);
 
   const activeClips = Object.values(clips)
     .filter(
@@ -119,19 +126,21 @@ function renderFrameToCanvas(
       ctx.filter = filterStr;
     }
 
-    const cx = width / 2 + animPosX;
-    const cy = height / 2 + animPosY;
+    // Map position from project space to export canvas (uniform scale, centered)
+    const cx = width / 2 + animPosX * uScale;
+    const cy = height / 2 + animPosY * uScale;
     ctx.translate(cx, cy);
     ctx.rotate((animRotation * Math.PI) / 180);
-    ctx.scale(animScaleX, animScaleY);
 
-    const srcW = ('videoWidth' in source ? source.videoWidth : source.width) || width;
-    const srcH = ('videoHeight' in source ? source.videoHeight : source.height) || height;
-    const scaleX = width / srcW;
-    const scaleY = height / srcH;
-    const scale = Math.min(scaleX, scaleY);
-    const drawW = srcW * scale;
-    const drawH = srcH * scale;
+    // Contain-scale source to export canvas, with correction to match preview proportions
+    const srcW = ('videoWidth' in source ? source.videoWidth : source.width) || projectWidth;
+    const srcH = ('videoHeight' in source ? source.videoHeight : source.height) || projectHeight;
+    const exportContain = Math.min(width / srcW, height / srcH);
+    const previewContain = Math.min(projectWidth / srcW, projectHeight / srcH);
+    const correction = previewContain / exportContain;
+    ctx.scale(animScaleX * correction, animScaleY * correction);
+    const drawW = srcW * exportContain;
+    const drawH = srcH * exportContain;
 
     ctx.drawImage(source, -drawW / 2, -drawH / 2, drawW, drawH);
     ctx.restore();
@@ -155,10 +164,10 @@ function renderFrameToCanvas(
     const isCaption = textTrack?.type === 'caption';
     ctx.textBaseline = isCaption ? 'bottom' : 'top';
 
-    const textX = width / 2 + textClip.position.x;
+    const textX = width / 2 + textClip.position.x * uScale;
     const textY = isCaption
-      ? height - 60 + textClip.position.y
-      : 60 + textClip.position.y;
+      ? height / 2 + (projectHeight / 2 - 60 + textClip.position.y) * uScale
+      : height / 2 + (-projectHeight / 2 + 60 + textClip.position.y) * uScale;
     const metrics = ctx.measureText(td.text);
     const textW = metrics.width + 24;
     const textH = td.fontSize + 16;
@@ -233,7 +242,7 @@ function buildSeekPlan(
  */
 export async function renderExportFrames(opts: ExportOptions): Promise<number> {
   const {
-    width, height, frameRate, backgroundColor,
+    width, height, projectWidth, projectHeight, frameRate, backgroundColor,
     clips, tracks, trackOrder, elements,
     totalDuration, onProgress, writeFrame,
   } = opts;
@@ -290,7 +299,7 @@ export async function renderExportFrames(opts: ExportOptions): Promise<number> {
     await Promise.all(seekPromises);
 
     // Render the frame
-    renderFrameToCanvas(ctx, width, height, backgroundColor, time, clips, tracks, trackOrder, elements);
+    renderFrameToCanvas(ctx, width, height, projectWidth, projectHeight, backgroundColor, time, clips, tracks, trackOrder, elements);
 
     // Capture frame as JPEG
     const frameBlob = await new Promise<Blob>((resolve) => {
@@ -324,7 +333,7 @@ export async function renderExportWithWebCodecs(opts: ExportOptions): Promise<Bl
   }
 
   const {
-    width, height, frameRate, backgroundColor,
+    width, height, projectWidth, projectHeight, frameRate, backgroundColor,
     clips, tracks, trackOrder, elements,
     totalDuration, onProgress,
   } = opts;
@@ -430,7 +439,7 @@ export async function renderExportWithWebCodecs(opts: ExportOptions): Promise<Bl
       await Promise.all(seekPromises);
 
       // Render frame
-      renderFrameToCanvas(ctx, width, height, backgroundColor, time, clips, tracks, trackOrder, elements);
+      renderFrameToCanvas(ctx, width, height, projectWidth, projectHeight, backgroundColor, time, clips, tracks, trackOrder, elements);
 
       // Create VideoFrame from canvas and encode
       const frame = new VideoFrame(canvas, {

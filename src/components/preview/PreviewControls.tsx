@@ -11,7 +11,7 @@ export function PreviewControls() {
   return (
     <div className="flex items-center gap-4 flex-shrink-0">
       {/* Time Display */}
-      <span className="text-xs text-zinc-400 font-mono w-20 text-right">
+      <span className="text-xs text-[var(--text-secondary)] font-mono w-20 text-right">
         {secondsToDisplay(playheadTime)}
       </span>
 
@@ -19,7 +19,7 @@ export function PreviewControls() {
       <div className="flex items-center gap-1">
         <button
           onClick={() => skipBackward(5)}
-          className="p-2 rounded hover:bg-zinc-800 transition-colors"
+          className="p-2 rounded hover:bg-[var(--bg-tertiary)] transition-colors"
           title="Skip backward 5s"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -29,7 +29,7 @@ export function PreviewControls() {
 
         <button
           onClick={togglePlayback}
-          className="p-2 rounded-full bg-zinc-800 hover:bg-zinc-700 transition-colors"
+          className="p-2 rounded-full bg-[var(--bg-tertiary)] hover:bg-zinc-700 transition-colors"
           title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
         >
           {isPlaying ? (
@@ -45,7 +45,7 @@ export function PreviewControls() {
 
         <button
           onClick={() => skipForward(5)}
-          className="p-2 rounded hover:bg-zinc-800 transition-colors"
+          className="p-2 rounded hover:bg-[var(--bg-tertiary)] transition-colors"
           title="Skip forward 5s"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -55,7 +55,7 @@ export function PreviewControls() {
       </div>
 
       {/* Duration */}
-      <span className="text-xs text-zinc-400 font-mono w-20">
+      <span className="text-xs text-[var(--text-secondary)] font-mono w-20">
         {secondsToDisplay(duration)}
       </span>
     </div>

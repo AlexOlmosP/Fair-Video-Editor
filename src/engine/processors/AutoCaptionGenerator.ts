@@ -47,15 +47,24 @@ export function isSpeechRecognitionSupported(): boolean {
     ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
 }
 
+const SILENCE_TIMEOUT_MS = 30000;
+
 /**
  * Generate captions from a video element using the Web Speech API.
- * The video must be playing for audio to be captured.
+ * Returns a promise for the entries and a stop() function for cancellation.
  */
 export function generateCaptions(
   videoElement: HTMLVideoElement,
   onProgress?: (entries: CaptionEntry[]) => void,
-): Promise<CaptionEntry[]> {
-  return new Promise((resolve, reject) => {
+): { entries: Promise<CaptionEntry[]>; stop: () => void } {
+  let recognitionRef: SpeechRecognition | null = null;
+
+  const stop = () => {
+    recognitionRef?.stop();
+    videoElement.pause();
+  };
+
+  const entries = new Promise<CaptionEntry[]>((resolve, reject) => {
     if (!isSpeechRecognitionSupported()) {
       reject(new Error('Speech recognition is not supported in this browser. Please use Chrome or Edge.'));
       return;
@@ -68,21 +77,31 @@ export function generateCaptions(
     }
 
     const recognition = new SpeechRecognitionCtor();
+    recognitionRef = recognition;
     recognition.continuous = true;
     recognition.interimResults = false;
     recognition.lang = 'en-US';
 
-    const entries: CaptionEntry[] = [];
+    const captionEntries: CaptionEntry[] = [];
     let lastEndTime = 0;
+    let silenceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const resetSilenceTimer = () => {
+      if (silenceTimer) clearTimeout(silenceTimer);
+      silenceTimer = setTimeout(() => {
+        recognition.stop();
+      }, SILENCE_TIMEOUT_MS);
+    };
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
+      resetSilenceTimer();
+
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
         if (result.isFinal) {
           const text = result[0].transcript.trim();
           if (!text) continue;
 
-          // Approximate timing based on video currentTime
           const endTime = videoElement.currentTime;
           const estimatedDuration = Math.max(1, text.split(' ').length * 0.4);
           const startTime = Math.max(lastEndTime, endTime - estimatedDuration);
@@ -94,32 +113,43 @@ export function generateCaptions(
             text,
           };
 
-          entries.push(entry);
+          captionEntries.push(entry);
           lastEndTime = endTime;
-          onProgress?.(entries);
+          onProgress?.(captionEntries);
         }
       }
     };
 
     recognition.onerror = (event: { error: string }) => {
-      if (event.error === 'no-speech') {
-        // Not an error, just silence
+      if (event.error === 'no-speech') return;
+      if (event.error === 'aborted') {
+        resolve(captionEntries);
         return;
       }
-      reject(new Error(`Speech recognition error: ${event.error}`));
+
+      let message = `Speech recognition error: ${event.error}`;
+      if (event.error === 'not-allowed') {
+        message = 'Microphone access denied. Please allow microphone access in your browser settings and try again.';
+      } else if (event.error === 'network') {
+        message = 'Network error during speech recognition. Check your internet connection and try again.';
+      } else if (event.error === 'audio-capture') {
+        message = 'No microphone detected. Please connect a microphone and try again.';
+      }
+      reject(new Error(message));
     };
 
     recognition.onend = () => {
-      resolve(entries);
+      if (silenceTimer) clearTimeout(silenceTimer);
+      resolve(captionEntries);
     };
 
-    // Start recognition — the audio comes from the video element
-    // playing through the system speakers (Web Speech API listens to mic/system)
     recognition.start();
+    resetSilenceTimer();
 
-    // Auto-stop when video ends or after a timeout
+    // Auto-stop when video ends
     const checkEnd = () => {
       if (videoElement.paused || videoElement.ended) {
+        if (silenceTimer) clearTimeout(silenceTimer);
         recognition.stop();
       } else {
         setTimeout(checkEnd, 500);
@@ -127,6 +157,8 @@ export function generateCaptions(
     };
     checkEnd();
   });
+
+  return { entries, stop };
 }
 
 /** Convert CaptionEntry[] to SRT subtitle format */

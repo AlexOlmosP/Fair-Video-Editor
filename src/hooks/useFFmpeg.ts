@@ -12,6 +12,7 @@ interface UseFFmpegReturn {
   exec: (args: string[]) => Promise<void>;
   writeFile: (name: string, data: File | Blob | string) => Promise<void>;
   readFile: (name: string) => Promise<Uint8Array>;
+  setOnProgress: (cb: ((p: number) => void) | null) => void;
 }
 
 export function useFFmpeg(): UseFFmpegReturn {
@@ -20,6 +21,7 @@ export function useFFmpeg(): UseFFmpegReturn {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const workerRef = useRef<FFmpegWorker | null>(null);
+  const progressCbRef = useRef<((p: number) => void) | null>(null);
 
   const getWorker = useCallback(() => {
     if (!workerRef.current) {
@@ -28,13 +30,20 @@ export function useFFmpeg(): UseFFmpegReturn {
     return workerRef.current;
   }, []);
 
+  const setOnProgress = useCallback((cb: ((p: number) => void) | null) => {
+    progressCbRef.current = cb;
+  }, []);
+
   const load = useCallback(async () => {
     if (isLoaded || isLoading) return;
     setIsLoading(true);
     setError(null);
     try {
       const worker = getWorker();
-      worker.onProgress(setProgress);
+      worker.onProgress((p) => {
+        setProgress(p);
+        if (progressCbRef.current) progressCbRef.current(p);
+      });
       await worker.load();
       setIsLoaded(true);
     } catch (err) {
@@ -60,5 +69,5 @@ export function useFFmpeg(): UseFFmpegReturn {
     return worker.readFile(name);
   }, [getWorker]);
 
-  return { isLoaded, isLoading, progress, error, load, exec, writeFile, readFile };
+  return { isLoaded, isLoading, progress, error, load, exec, writeFile, readFile, setOnProgress };
 }

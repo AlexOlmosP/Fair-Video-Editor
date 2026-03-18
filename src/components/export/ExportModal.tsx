@@ -7,7 +7,7 @@ import { useTimelineStore } from '@/store/useTimelineStore';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useMediaStore } from '@/store/useMediaStore';
 import { ASPECT_RATIO_PRESETS, getExportDimensions } from '@/lib/constants';
-import { renderExportFrames, getTimelineDuration } from '@/engine/export/canvasExporter';
+import { renderExportFrames, renderExportWithWebCodecs, getTimelineDuration } from '@/engine/export/canvasExporter';
 
 interface ExportModalProps {
   onClose: () => void;
@@ -19,7 +19,7 @@ export function ExportModal({ onClose }: ExportModalProps) {
   const [isExporting, setIsExporting] = useState(false);
   const [exportStage, setExportStage] = useState('');
   const [exportProgress, setExportProgress] = useState(0);
-  const { isLoaded, isLoading, error, load, exec, writeFile, readFile } = useFFmpeg();
+  const { isLoaded, isLoading, error, load, exec, writeFile, readFile, setOnProgress } = useFFmpeg();
 
   const handleExport = useCallback(async () => {
     const preset = EXPORT_PRESETS[selectedPreset];
@@ -59,13 +59,15 @@ export function ExportModal({ onClose }: ExportModalProps) {
         return;
       }
 
-      // Phase 1: Render video frames from canvas at the correct aspect ratio
+      // Phase 1+2: Render and encode video
       setExportStage('Rendering frames...');
       const exportDims = getExportDimensions(selectedPreset, selectedRatio, preset.width, preset.height);
 
-      const totalFrames = await renderExportFrames({
+      const exportOpts = {
         width: exportDims.width,
         height: exportDims.height,
+        projectWidth: settings.width,
+        projectHeight: settings.height,
         frameRate: preset.frameRate,
         backgroundColor: settings.backgroundColor,
         clips,
@@ -73,31 +75,94 @@ export function ExportModal({ onClose }: ExportModalProps) {
         trackOrder,
         elements: elements as Record<string, HTMLVideoElement | HTMLImageElement>,
         totalDuration,
-        onProgress: (stage, frame, total) => {
-          setExportStage(`Rendering frame ${frame}/${total}`);
-          setExportProgress(Math.round((frame / total) * 50)); // 0-50% for rendering
+        onProgress: (stage: string, frame: number, total: number) => {
+          setExportStage(`${stage} ${frame}/${total}`);
+          setExportProgress(Math.round((frame / total) * 60)); // 0-60% for render+encode
         },
-        writeFrame: async (name, blob) => {
+        writeFrame: async (name: string, blob: Blob) => {
           await writeFile(name, blob);
         },
-      });
+      };
 
-      // Phase 2: Encode JPEG sequence to H.264 video
-      setExportStage('Encoding video...');
-      setExportProgress(50);
+      // Try WebCodecs first (hardware-accelerated, non-blocking)
+      let webCodecsBlob: Blob | null = null;
+      try {
+        setExportStage('Encoding with WebCodecs...');
+        webCodecsBlob = await renderExportWithWebCodecs(exportOpts);
+      } catch {
+        webCodecsBlob = null;
+      }
 
-      const videoCmd: string[] = [
-        '-framerate', String(preset.frameRate),
-        '-i', 'frame_%06d.jpg',
-        '-c:v', preset.codec,
-        '-b:v', preset.videoBitrate,
-        '-pix_fmt', 'yuv420p',
-        '-movflags', '+faststart',
-      ];
+      if (webCodecsBlob && webCodecsBlob.size > 0) {
+        // WebCodecs succeeded — write raw bitstream, wrap in MP4 container via FFmpeg
+        setExportStage('Wrapping in MP4 container...');
+        setExportProgress(62);
+        await writeFile('raw_video.h264', webCodecsBlob);
+        await exec([
+          '-f', 'h264',
+          '-framerate', String(preset.frameRate),
+          '-i', 'raw_video.h264',
+          '-c:v', 'copy',
+          '-movflags', '+faststart',
+          '-y', 'video_only.mp4',
+        ]);
+        setExportProgress(65);
+      } else {
+        // Fallback: render JPEG frames + encode with FFmpeg
+        setExportStage('Rendering frames...');
+        const totalFrames = await renderExportFrames(exportOpts);
 
-      videoCmd.push('-y', 'video_only.mp4');
-      await exec(videoCmd);
-      setExportProgress(65);
+        setExportStage('Encoding video...');
+        setExportProgress(60);
+
+        setOnProgress((ffmpegProgress) => {
+          const overall = 60 + Math.round((ffmpegProgress / 100) * 5);
+          setExportProgress(overall);
+          setExportStage(`Encoding video... ${ffmpegProgress}%`);
+        });
+
+        // Build concat demuxer file
+        const frameDuration = (1 / preset.frameRate).toFixed(6);
+        const concatLines: string[] = [];
+        for (let i = 0; i < totalFrames; i++) {
+          const frameName = `frame_${String(i).padStart(6, '0')}.jpg`;
+          concatLines.push(`file '${frameName}'`);
+          concatLines.push(`duration ${frameDuration}`);
+        }
+        if (totalFrames > 0) {
+          concatLines.push(`file 'frame_${String(totalFrames - 1).padStart(6, '0')}.jpg'`);
+        }
+        await writeFile('frames.txt', new Blob([concatLines.join('\n')], { type: 'text/plain' }));
+
+        // Use mjpeg codec first (fast, no re-encoding), then transcode in a second pass
+        await exec([
+          '-f', 'concat',
+          '-safe', '0',
+          '-i', 'frames.txt',
+          '-c:v', 'mjpeg',
+          '-q:v', '2',
+          '-y', 'video_mjpeg.avi',
+        ]);
+        setOnProgress(null);
+
+        setExportStage('Transcoding to H.264...');
+        setOnProgress((ffmpegProgress) => {
+          const overall = 62 + Math.round((ffmpegProgress / 100) * 3);
+          setExportProgress(overall);
+        });
+
+        await exec([
+          '-i', 'video_mjpeg.avi',
+          '-c:v', preset.codec,
+          '-b:v', preset.videoBitrate,
+          '-pix_fmt', 'yuv420p',
+          '-preset', 'ultrafast',
+          '-movflags', '+faststart',
+          '-y', 'video_only.mp4',
+        ]);
+        setOnProgress(null);
+        setExportProgress(65);
+      }
 
       // Phase 3: Extract audio from source videos and mix
       const audioClips = clipList.filter((c) => {
@@ -236,6 +301,7 @@ export function ExportModal({ onClose }: ExportModalProps) {
       console.error('Export error:', err);
       setExportStage(`Export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
+      setOnProgress(null);
       setIsExporting(false);
     }
   }, [selectedPreset, selectedRatio, isLoaded, load, exec, writeFile, readFile, onClose]);
@@ -243,13 +309,13 @@ export function ExportModal({ onClose }: ExportModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div
-        className="bg-zinc-900 border border-zinc-700 rounded-xl w-[420px] shadow-2xl"
+        className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl w-[420px] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-color)]">
           <h2 className="text-base font-semibold">Export Video</h2>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors">
+          <button onClick={onClose} className="text-[var(--text-muted)] hover:text-white transition-colors">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -259,7 +325,7 @@ export function ExportModal({ onClose }: ExportModalProps) {
         {/* Preset Selection */}
         <div className="px-5 py-4 space-y-4">
           <div>
-            <label className="block text-xs text-zinc-400 mb-2">Quality Preset</label>
+            <label className="block text-xs text-[var(--text-secondary)] mb-2">Quality Preset</label>
             <div className="grid grid-cols-2 gap-2">
               {Object.entries(EXPORT_PRESETS).map(([key, preset]) => (
                 <button
@@ -268,7 +334,7 @@ export function ExportModal({ onClose }: ExportModalProps) {
                   className={`px-3 py-2 rounded text-sm text-left transition-colors ${
                     selectedPreset === key
                       ? 'bg-blue-600 text-white'
-                      : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                      : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]'
                   }`}
                 >
                   <div className="font-medium">{preset.name}</div>
@@ -285,14 +351,14 @@ export function ExportModal({ onClose }: ExportModalProps) {
 
           {/* Aspect Ratio for Export */}
           <div>
-            <label className="block text-xs text-zinc-400 mb-2">Aspect Ratio</label>
+            <label className="block text-xs text-[var(--text-secondary)] mb-2">Aspect Ratio</label>
             <div className="flex gap-1.5">
               <button
                 onClick={() => setSelectedRatio(null)}
                 className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
                   selectedRatio === null
                     ? 'bg-blue-600 text-white'
-                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'
+                    : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 Native
@@ -304,7 +370,7 @@ export function ExportModal({ onClose }: ExportModalProps) {
                   className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
                     selectedRatio === preset.label
                       ? 'bg-blue-600 text-white'
-                      : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'
+                      : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
                   }`}
                 >
                   {preset.label}
@@ -317,13 +383,13 @@ export function ExportModal({ onClose }: ExportModalProps) {
           {(isExporting || exportStage) && (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-zinc-400">{exportStage}</span>
+                <span className="text-[var(--text-secondary)]">{exportStage}</span>
                 {isExporting && exportProgress > 0 && (
-                  <span className="text-zinc-300 font-mono">{exportProgress}%</span>
+                  <span className="text-[var(--text-secondary)] font-mono">{exportProgress}%</span>
                 )}
               </div>
               {isExporting && (
-                <div className="w-full bg-zinc-800 rounded-full h-1.5">
+                <div className="w-full bg-[var(--bg-tertiary)] rounded-full h-1.5">
                   <div
                     className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
                     style={{ width: `${Math.max(exportProgress, 2)}%` }}
@@ -339,10 +405,10 @@ export function ExportModal({ onClose }: ExportModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-zinc-800 flex justify-end gap-2">
+        <div className="px-5 py-4 border-t border-[var(--border-color)] flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm rounded bg-zinc-800 hover:bg-zinc-700 transition-colors"
+            className="px-4 py-2 text-sm rounded bg-[var(--bg-tertiary)] hover:bg-[var(--bg-tertiary)] transition-colors"
           >
             Cancel
           </button>

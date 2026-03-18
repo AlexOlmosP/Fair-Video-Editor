@@ -332,11 +332,31 @@ export function PreviewPlayer() {
     }
 
     // Draw safe area overlay
-    if (safeAreaRatio) {
-      const preset = ASPECT_RATIO_PRESETS.find((p) => p.label === safeAreaRatio);
+    const currentSafeArea = useProjectStore.getState().safeAreaRatio;
+    if (currentSafeArea) {
+      const preset = ASPECT_RATIO_PRESETS.find((p) => p.label === currentSafeArea);
       if (preset) {
         drawSafeAreaOverlay(ctx, cw, ch, preset.ratio, preset.label);
       }
+    }
+
+    // Draw center crosshair guides when a clip is selected
+    if (selectedClipIds.length > 0) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([6, 4]);
+      // Vertical center line
+      ctx.beginPath();
+      ctx.moveTo(cw / 2, 0);
+      ctx.lineTo(cw / 2, ch);
+      ctx.stroke();
+      // Horizontal center line
+      ctx.beginPath();
+      ctx.moveTo(0, ch / 2);
+      ctx.lineTo(cw, ch / 2);
+      ctx.stroke();
+      ctx.restore();
     }
   }, [projectW, projectH, settings.backgroundColor]);
 
@@ -404,10 +424,6 @@ export function PreviewPlayer() {
   }, []);
 
   const aspectRatio = projectW / projectH;
-  const safeAreaRatio = useProjectStore((s) => s.safeAreaRatio);
-  const setSafeAreaRatio = useProjectStore((s) => s.setSafeAreaRatio);
-  const aspectRatioLocked = useProjectStore((s) => s.aspectRatioLocked);
-  const setAspectRatioLocked = useProjectStore((s) => s.setAspectRatioLocked);
 
   return (
     <div className="flex flex-col items-center gap-3 p-4 w-full h-full">
@@ -421,49 +437,9 @@ export function PreviewPlayer() {
             ref={canvasRef}
             width={canvasSize.w}
             height={canvasSize.h}
-            className="w-full h-full rounded border border-zinc-800 bg-black"
+            className="w-full h-full rounded border border-[var(--border-color)] bg-black"
           />
           <CanvasInteraction canvasRef={canvasRef} />
-        </div>
-        {/* Preview Toolbar */}
-        <div className="absolute top-2 right-2 flex items-center gap-2 z-10">
-          {/* Aspect Ratio Lock Toggle */}
-          <button
-            onClick={() => setAspectRatioLocked(!aspectRatioLocked)}
-            className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${
-              aspectRatioLocked
-                ? 'bg-blue-600 text-white'
-                : 'bg-black/60 text-zinc-400 hover:text-white hover:bg-zinc-700'
-            }`}
-            title={aspectRatioLocked ? 'Aspect ratio locked — click to unlock free scaling' : 'Aspect ratio unlocked — click to lock'}
-          >
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              {aspectRatioLocked ? (
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-              )}
-            </svg>
-            {aspectRatioLocked ? 'Locked' : 'Free'}
-          </button>
-          {/* Safe Area Ratio Buttons */}
-          <div className="flex gap-1 bg-black/60 rounded-lg p-1">
-            {ASPECT_RATIO_PRESETS.map((preset) => (
-              <button
-                key={preset.label}
-                onClick={() =>
-                  setSafeAreaRatio(safeAreaRatio === preset.label ? null : preset.label)
-                }
-                className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${
-                  safeAreaRatio === preset.label
-                    ? 'bg-blue-600 text-white'
-                    : 'text-zinc-400 hover:text-white hover:bg-zinc-700'
-                }`}
-              >
-                {preset.label}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
       <PreviewControls />

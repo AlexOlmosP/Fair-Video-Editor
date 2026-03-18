@@ -1,27 +1,36 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useTimelineStore } from '@/store/useTimelineStore';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useMediaStore } from '@/store/useMediaStore';
 import { isSpeechRecognitionSupported, generateCaptions } from '@/engine/processors/AutoCaptionGenerator';
 import type { CaptionEntry } from '@/store/types';
-import { v4 as uuid } from 'uuid';
 
 export function CaptionEditor() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [captions, setCaptions] = useState<CaptionEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const stopRef = useRef<(() => void) | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
 
   const handleGenerate = useCallback(async () => {
     setError(null);
+    setElapsedTime(0);
 
     if (!isSpeechRecognitionSupported()) {
-      setError('Speech recognition requires Chrome or Edge browser.');
+      setError('Speech recognition requires Chrome or Edge browser. Safari and Firefox are not supported.');
       return;
     }
 
-    // Find the first selected video clip or the first video clip on the timeline
     const { clips, selectedClipIds } = useTimelineStore.getState();
     const { assets } = useProjectStore.getState();
     const { elements } = useMediaStore.getState();
@@ -49,35 +58,47 @@ export function CaptionEditor() {
 
     setIsGenerating(true);
 
+    // Start elapsed timer
+    const startTime = Date.now();
+    timerRef.current = setInterval(() => {
+      setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
+
     try {
-      // Play the video for speech recognition to work
       element.currentTime = clip.inPoint;
+      element.volume = 1;
       await element.play();
 
-      const entries = await generateCaptions(element, (progress) => {
+      const { entries, stop } = generateCaptions(element, (progress) => {
         setCaptions([...progress]);
       });
 
-      setCaptions(entries);
-
-      // Stop video playback
+      stopRef.current = stop;
+      const result = await entries;
+      setCaptions(result);
       element.pause();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Caption generation failed');
     } finally {
       setIsGenerating(false);
+      stopRef.current = null;
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     }
+  }, []);
+
+  const handleStop = useCallback(() => {
+    stopRef.current?.();
   }, []);
 
   const handleAddToTimeline = useCallback(() => {
     if (captions.length === 0) return;
 
     const { addTrack, addClip } = useTimelineStore.getState();
-
-    // Create a caption track
     const trackId = addTrack('caption', 'Captions');
 
-    // Add each caption as a text clip
     for (const caption of captions) {
       addClip({
         assetId: '',
@@ -120,26 +141,55 @@ export function CaptionEditor() {
     setCaptions((prev) => prev.filter((c) => c.id !== id));
   };
 
+  const formatElapsed = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${sec.toString().padStart(2, '0')}`;
+  };
+
   return (
     <div className="flex flex-col h-full">
-      <div className="p-3 border-b border-zinc-800">
-        <h2 className="text-sm font-semibold text-zinc-300">Auto Captions</h2>
+      <div className="p-3 border-b border-[var(--border-color)]">
+        <h2 className="text-sm font-semibold text-[var(--text-secondary)]">Auto Captions</h2>
       </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
-        <button
-          onClick={handleGenerate}
-          disabled={isGenerating}
-          className="w-full px-3 py-2 text-sm rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-        >
-          {isGenerating ? 'Generating...' : 'Generate Captions'}
-        </button>
+        {/* Info notice */}
+        <div className="text-[10px] text-[var(--text-muted)] bg-[var(--bg-tertiary)] rounded-md p-2.5 leading-relaxed">
+          <p className="font-medium mb-1">How it works:</p>
+          <p>Captions use your browser&apos;s speech recognition. The video will play through your speakers and the browser listens via your <strong>microphone</strong>.</p>
+          <p className="mt-1">For best results: turn up volume, reduce background noise, and use Chrome or Edge.</p>
+        </div>
 
-        {error && (
-          <p className="text-red-400 text-xs">{error}</p>
+        {/* Generate / Stop buttons */}
+        <div className="flex gap-2">
+          <button
+            onClick={handleGenerate}
+            disabled={isGenerating}
+            className="flex-1 px-3 py-2 text-sm rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+          >
+            {isGenerating ? 'Listening...' : 'Generate Captions'}
+          </button>
+          {isGenerating && (
+            <button
+              onClick={handleStop}
+              className="px-3 py-2 text-sm rounded bg-red-600 hover:bg-red-500 transition-colors font-medium"
+            >
+              Stop
+            </button>
+          )}
+        </div>
+
+        {/* Progress indicator */}
+        {isGenerating && (
+          <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            <span>Recording... {formatElapsed(elapsedTime)}</span>
+            <span className="ml-auto">{captions.length} captions</span>
+          </div>
         )}
 
-        {isGenerating && (
-          <p className="text-zinc-500 text-xs">Playing video for speech recognition... Make sure your audio is working.</p>
+        {error && (
+          <p className="text-red-400 text-xs bg-red-500/10 rounded p-2">{error}</p>
         )}
 
         {captions.length > 0 && (
@@ -153,14 +203,14 @@ export function CaptionEditor() {
 
             <div className="space-y-2">
               {captions.map((caption) => (
-                <div key={caption.id} className="bg-zinc-800 rounded p-2 space-y-1">
+                <div key={caption.id} className="bg-[var(--bg-tertiary)] rounded p-2 space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-zinc-500 font-mono">
+                    <span className="text-[10px] text-[var(--text-muted)] font-mono">
                       {caption.startTime.toFixed(1)}s - {caption.endTime.toFixed(1)}s
                     </span>
                     <button
                       onClick={() => removeCaption(caption.id)}
-                      className="text-zinc-600 hover:text-red-400 transition-colors"
+                      className="text-[var(--text-muted)] hover:text-red-400 transition-colors"
                     >
                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -171,7 +221,7 @@ export function CaptionEditor() {
                     type="text"
                     value={caption.text}
                     onChange={(e) => updateCaption(caption.id, { text: e.target.value })}
-                    className="w-full bg-zinc-900 text-zinc-200 text-sm px-2 py-1 rounded border border-zinc-700 focus:border-blue-500 outline-none"
+                    className="w-full bg-[var(--bg-secondary)] text-[var(--text-primary)] text-sm px-2 py-1 rounded border border-[var(--border-color)] focus:border-blue-500 outline-none"
                   />
                 </div>
               ))}

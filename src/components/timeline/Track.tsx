@@ -130,7 +130,7 @@ export function Track({ track, pixelsPerSecond }: TrackProps) {
   return (
     <div
       data-track-id={track.id}
-      className={`relative border-b border-zinc-800 group ${isDragOver ? 'bg-blue-500/10' : ''}`}
+      className={`relative border-b border-[var(--border-color)] group ${isDragOver ? 'bg-blue-500/10' : ''}`}
       style={{
         height: track.height + (hasAnimations ? ANIMATION_SUBLANE_HEIGHT : 0),
         opacity: track.visible ? 1 : 0.4,
@@ -174,7 +174,7 @@ export function Track({ track, pixelsPerSecond }: TrackProps) {
       {gaps.map((gap, i) => (
         <button
           key={i}
-          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-30 w-5 h-5 rounded-full bg-zinc-700 hover:bg-blue-600 text-zinc-400 hover:text-white flex items-center justify-center text-xs transition-all opacity-0 hover:opacity-100 group-hover:opacity-60"
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-30 w-5 h-5 rounded-full bg-zinc-700 hover:bg-blue-600 text-[var(--text-secondary)] hover:text-white flex items-center justify-center text-xs transition-all opacity-0 hover:opacity-100 group-hover:opacity-60"
           style={{ left: gap.leftPx }}
           title="Add transition"
           onClick={(e) => {

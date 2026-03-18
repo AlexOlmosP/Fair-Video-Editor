@@ -92,7 +92,7 @@ export function TTSPanel() {
   if (!isTTSSupported()) {
     return (
       <div className="flex flex-col h-full p-3">
-        <h2 className="text-sm font-semibold text-zinc-300 mb-2">Text-to-Speech</h2>
+        <h2 className="text-sm font-semibold text-[var(--text-secondary)] mb-2">Text-to-Speech</h2>
         <p className="text-red-400 text-xs">TTS is not supported in this browser.</p>
       </div>
     );
@@ -108,23 +108,23 @@ export function TTSPanel() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-3 border-b border-zinc-800">
-        <h2 className="text-sm font-semibold text-zinc-300">Text-to-Speech</h2>
+      <div className="p-3 border-b border-[var(--border-color)]">
+        <h2 className="text-sm font-semibold text-[var(--text-secondary)]">Text-to-Speech</h2>
       </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Enter text to convert to speech..."
-          className="w-full h-24 bg-zinc-800 text-zinc-200 text-sm px-3 py-2 rounded border border-zinc-700 focus:border-blue-500 outline-none resize-none"
+          className="w-full h-24 bg-[var(--bg-tertiary)] text-[var(--text-primary)] text-sm px-3 py-2 rounded border border-[var(--border-color)] focus:border-blue-500 outline-none resize-none"
         />
 
         <div>
-          <label className="block text-xs text-zinc-500 mb-1">Voice</label>
+          <label className="block text-xs text-[var(--text-muted)] mb-1">Voice</label>
           <select
             value={selectedVoice}
             onChange={(e) => setSelectedVoice(e.target.value)}
-            className="w-full bg-zinc-800 text-zinc-200 text-sm px-2 py-1.5 rounded border border-zinc-700 outline-none"
+            className="w-full bg-[var(--bg-tertiary)] text-[var(--text-primary)] text-sm px-2 py-1.5 rounded border border-[var(--border-color)] outline-none"
           >
             {Array.from(langGroups.entries()).map(([lang, langVoices]) => (
               <optgroup key={lang} label={lang.toUpperCase()}>
@@ -140,7 +140,7 @@ export function TTSPanel() {
 
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="block text-xs text-zinc-500 mb-1">Rate: {rate.toFixed(1)}</label>
+            <label className="block text-xs text-[var(--text-muted)] mb-1">Rate: {rate.toFixed(1)}</label>
             <input
               type="range"
               min={0.5}
@@ -152,7 +152,7 @@ export function TTSPanel() {
             />
           </div>
           <div>
-            <label className="block text-xs text-zinc-500 mb-1">Pitch: {pitch.toFixed(1)}</label>
+            <label className="block text-xs text-[var(--text-muted)] mb-1">Pitch: {pitch.toFixed(1)}</label>
             <input
               type="range"
               min={0.5}
@@ -177,7 +177,7 @@ export function TTSPanel() {
           <button
             onClick={isPreviewing ? handleStop : handlePreview}
             disabled={!text.trim()}
-            className="flex-1 px-3 py-1.5 text-sm rounded bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 transition-colors"
+            className="flex-1 px-3 py-1.5 text-sm rounded bg-[var(--bg-tertiary)] hover:bg-zinc-700 disabled:opacity-50 transition-colors"
           >
             {isPreviewing ? 'Stop' : 'Preview'}
           </button>

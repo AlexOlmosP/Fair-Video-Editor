@@ -48,16 +48,16 @@ export function EffectsPanel() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-3 border-b border-zinc-800">
-        <h2 className="text-sm font-semibold text-zinc-300">Effects</h2>
+      <div className="p-3 border-b border-[var(--border-color)]">
+        <h2 className="text-sm font-semibold text-[var(--text-secondary)]">Effects</h2>
         {!selectedClip && (
-          <p className="text-[11px] text-zinc-500 mt-1">Select a clip to apply effects</p>
+          <p className="text-[11px] text-[var(--text-muted)] mt-1">Select a clip to apply effects</p>
         )}
       </div>
       <div className="flex-1 overflow-y-auto p-2 space-y-4">
         {categories.map((category) => (
           <div key={category}>
-            <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2 px-1">
+            <h3 className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-2 px-1">
               {category}
             </h3>
             <div className="space-y-1">
@@ -72,8 +72,8 @@ export function EffectsPanel() {
                       isApplied
                         ? 'bg-blue-600/20 border border-blue-500/50 text-blue-300'
                         : selectedClip
-                          ? 'bg-zinc-800 border border-transparent hover:border-zinc-600 text-zinc-300'
-                          : 'bg-zinc-800/50 border border-transparent text-zinc-600 cursor-not-allowed'
+                          ? 'bg-[var(--bg-tertiary)] border border-transparent hover:border-zinc-600 text-[var(--text-secondary)]'
+                          : 'bg-[var(--bg-tertiary)]/50 border border-transparent text-zinc-600 cursor-not-allowed'
                     }`}
                   >
                     <span>{effect.label}</span>

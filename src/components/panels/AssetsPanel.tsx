@@ -128,8 +128,8 @@ export function AssetsPanel() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b border-zinc-800">
-        <h2 className="text-sm font-semibold text-zinc-300">Assets</h2>
+      <div className="flex items-center justify-between p-3 border-b border-[var(--border-color)]">
+        <h2 className="text-sm font-semibold text-[var(--text-secondary)]">Assets</h2>
         <button
           onClick={handleFileImport}
           className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-500 rounded transition-colors"
@@ -141,7 +141,7 @@ export function AssetsPanel() {
       {/* Asset List */}
       <div className="flex-1 overflow-y-auto p-2 relative">
         {assetList.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-zinc-500 text-sm gap-2 p-4">
+          <div className="flex flex-col items-center justify-center h-full text-[var(--text-muted)] text-sm gap-2 p-4">
             <svg className="w-12 h-12 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
             </svg>
@@ -159,7 +159,7 @@ export function AssetsPanel() {
                   e.dataTransfer.setData('application/x-asset-duration', String(asset.duration));
                   e.dataTransfer.effectAllowed = 'copy';
                 }}
-                className="p-2 rounded bg-zinc-800 cursor-grab active:cursor-grabbing border border-zinc-700 hover:border-zinc-600 transition-colors relative group"
+                className="p-2 rounded bg-[var(--bg-tertiary)] cursor-grab active:cursor-grabbing border border-[var(--border-color)] hover:border-zinc-600 transition-colors relative group"
               >
                 {/* Delete button */}
                 <button
@@ -167,14 +167,14 @@ export function AssetsPanel() {
                     e.stopPropagation();
                     handleRemoveAsset(asset.id);
                   }}
-                  className="absolute top-1 right-1 z-10 w-5 h-5 rounded-full bg-zinc-900/80 hover:bg-red-600 text-zinc-400 hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+                  className="absolute top-1 right-1 z-10 w-5 h-5 rounded-full bg-[var(--bg-secondary)]/80 hover:bg-red-600 text-[var(--text-secondary)] hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
                   title="Remove asset"
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
-                <div className="w-full aspect-video bg-zinc-900 rounded mb-1.5 flex items-center justify-center overflow-hidden relative">
+                <div className="w-full aspect-video bg-[var(--bg-secondary)] rounded mb-1.5 flex items-center justify-center overflow-hidden relative">
                   {thumbnails[asset.id] ? (
                     <img
                       src={thumbnails[asset.id]}
@@ -200,11 +200,11 @@ export function AssetsPanel() {
                       )}
                     </>
                   )}
-                  <span className="absolute bottom-0.5 right-0.5 text-[9px] bg-black/70 px-1 rounded text-zinc-300">
+                  <span className="absolute bottom-0.5 right-0.5 text-[9px] bg-black/70 px-1 rounded text-[var(--text-secondary)]">
                     {secondsToDisplay(asset.duration)}
                   </span>
                 </div>
-                <p className="text-xs text-zinc-400 truncate">{asset.name}</p>
+                <p className="text-xs text-[var(--text-secondary)] truncate">{asset.name}</p>
               </div>
             ))}
           </div>

@@ -87,12 +87,12 @@ export function ClipContextMenu({ clipId, x, y, onClose }: ClipContextMenuProps)
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl py-1 min-w-[180px]"
+      className="fixed z-50 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg shadow-xl py-1 min-w-[180px]"
       style={{ left: x, top: y }}
     >
       {menuItems.map((item, i) =>
         item.label === 'divider' ? (
-          <div key={i} className="border-t border-zinc-800 my-1" />
+          <div key={i} className="border-t border-[var(--border-color)] my-1" />
         ) : (
           <button
             key={item.label}
@@ -100,7 +100,7 @@ export function ClipContextMenu({ clipId, x, y, onClose }: ClipContextMenuProps)
             className={`w-full px-3 py-1.5 text-sm text-left flex items-center justify-between transition-colors ${
               (item as { danger?: boolean }).danger
                 ? 'text-red-400 hover:bg-red-500/10'
-                : 'text-zinc-300 hover:bg-zinc-800'
+                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]'
             }`}
           >
             <span>{item.label}</span>
