@@ -1,36 +1,37 @@
 'use client';
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { useTimelineStore } from '@/store/useTimelineStore';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useMediaStore } from '@/store/useMediaStore';
-import { isSpeechRecognitionSupported, generateCaptions } from '@/engine/processors/AutoCaptionGenerator';
-import type { CaptionEntry } from '@/store/types';
+import { transcribeVideo, isWhisperSupported, type TranscriptionStatus, type TranscriptionSegment } from '@/engine/processors/WhisperTranscriber';
+import { generateId } from '@/lib/id';
+
+interface CaptionItem {
+  id: string;
+  text: string;
+  startTime: number;
+  endTime: number;
+}
 
 export function CaptionEditor() {
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [captions, setCaptions] = useState<CaptionEntry[]>([]);
+  const [status, setStatus] = useState<TranscriptionStatus | null>(null);
+  const [captions, setCaptions] = useState<CaptionItem[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [elapsedTime, setElapsedTime] = useState(0);
-  const stopRef = useRef<(() => void) | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Clean up timer on unmount
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, []);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const abortRef = useRef(false);
 
   const handleGenerate = useCallback(async () => {
     setError(null);
-    setElapsedTime(0);
+    setCaptions([]);
+    abortRef.current = false;
 
-    if (!isSpeechRecognitionSupported()) {
-      setError('Speech recognition requires Chrome or Edge browser. Safari and Firefox are not supported.');
+    if (!isWhisperSupported()) {
+      setError('Your browser does not support the required audio APIs.');
       return;
     }
 
+    // Find a video clip to transcribe
     const { clips, selectedClipIds } = useTimelineStore.getState();
     const { assets } = useProjectStore.getState();
     const { elements } = useMediaStore.getState();
@@ -58,59 +59,59 @@ export function CaptionEditor() {
 
     setIsGenerating(true);
 
-    // Start elapsed timer
-    const startTime = Date.now();
-    timerRef.current = setInterval(() => {
-      setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
-    }, 1000);
-
     try {
-      element.currentTime = clip.inPoint;
-      element.volume = 1;
-      await element.play();
-
-      const { entries, stop } = generateCaptions(element, (progress) => {
-        setCaptions([...progress]);
+      const segments = await transcribeVideo(element, (s) => {
+        if (abortRef.current) return;
+        setStatus(s);
       });
 
-      stopRef.current = stop;
-      const result = await entries;
-      setCaptions(result);
-      element.pause();
+      if (!abortRef.current) {
+        // Convert segments to caption items with clip timeline offset
+        const clipOffset = clip.startTime;
+        const items: CaptionItem[] = segments.map((seg: TranscriptionSegment) => ({
+          id: generateId(),
+          text: seg.text,
+          startTime: seg.startTime + clipOffset,
+          endTime: seg.endTime + clipOffset,
+        }));
+        setCaptions(items);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Caption generation failed');
+      if (!abortRef.current) {
+        setError(err instanceof Error ? err.message : 'Transcription failed');
+      }
     } finally {
       setIsGenerating(false);
-      stopRef.current = null;
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
+      setStatus(null);
     }
   }, []);
 
   const handleStop = useCallback(() => {
-    stopRef.current?.();
+    abortRef.current = true;
+    setIsGenerating(false);
+    setStatus(null);
   }, []);
 
   const handleAddToTimeline = useCallback(() => {
     if (captions.length === 0) return;
 
     const { addTrack, addClip } = useTimelineStore.getState();
+    const { settings } = useProjectStore.getState();
     const trackId = addTrack('caption', 'Captions');
 
     for (const caption of captions) {
+      const duration = Math.max(0.3, caption.endTime - caption.startTime);
       addClip({
         assetId: '',
         trackId,
         startTime: caption.startTime,
-        duration: caption.endTime - caption.startTime,
+        duration,
         inPoint: 0,
-        outPoint: caption.endTime - caption.startTime,
+        outPoint: duration,
         speed: 1,
         opacity: 1,
         volume: 0,
-        position: { x: 0, y: 0 },
+        position: { x: 0, y: settings.height * 0.35 },
         scale: { x: 1, y: 1 },
         rotation: 0,
         filters: [],
@@ -131,7 +132,7 @@ export function CaptionEditor() {
     }
   }, [captions]);
 
-  const updateCaption = (id: string, updates: Partial<CaptionEntry>) => {
+  const updateCaption = (id: string, updates: Partial<CaptionItem>) => {
     setCaptions((prev) =>
       prev.map((c) => (c.id === id ? { ...c, ...updates } : c))
     );
@@ -141,10 +142,31 @@ export function CaptionEditor() {
     setCaptions((prev) => prev.filter((c) => c.id !== id));
   };
 
-  const formatElapsed = (s: number) => {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m}:${sec.toString().padStart(2, '0')}`;
+  // Progress display helpers
+  const getProgressLabel = () => {
+    if (!status) return '';
+    switch (status.phase) {
+      case 'loading-model':
+        return `Downloading AI model... ${Math.round(status.progress)}%`;
+      case 'extracting-audio':
+        return 'Extracting audio from video...';
+      case 'transcribing':
+        return `Transcribing audio... ${Math.round(status.progress)}%`;
+      case 'error':
+        return status.message;
+      default:
+        return '';
+    }
+  };
+
+  const getProgressPercent = () => {
+    if (!status) return 0;
+    switch (status.phase) {
+      case 'loading-model': return status.progress * 0.3; // 0-30%
+      case 'extracting-audio': return 35;
+      case 'transcribing': return 40 + status.progress * 0.6; // 40-100%
+      default: return 0;
+    }
   };
 
   return (
@@ -155,9 +177,8 @@ export function CaptionEditor() {
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
         {/* Info notice */}
         <div className="text-[10px] text-[var(--text-muted)] bg-[var(--bg-tertiary)] rounded-xl p-2.5 leading-relaxed">
-          <p className="font-medium mb-1">How it works:</p>
-          <p>Captions use your browser&apos;s speech recognition. The video will play through your speakers and the browser listens via your <strong>microphone</strong>.</p>
-          <p className="mt-1">For best results: turn up volume, reduce background noise, and use Chrome or Edge.</p>
+          <p>Generates captions from video audio using AI speech recognition. Processes the actual audio track — no microphone needed.</p>
+          <p className="mt-1 text-[9px] opacity-70">First use downloads a ~40MB AI model (cached for future use).</p>
         </div>
 
         {/* Generate / Stop buttons */}
@@ -167,7 +188,7 @@ export function CaptionEditor() {
             disabled={isGenerating}
             className="flex-1 px-3 py-2 text-sm rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed btn-press transition-colors font-medium"
           >
-            {isGenerating ? 'Listening...' : 'Generate Captions'}
+            {isGenerating ? 'Processing...' : 'Generate Captions'}
           </button>
           {isGenerating && (
             <button
@@ -180,16 +201,23 @@ export function CaptionEditor() {
         </div>
 
         {/* Progress indicator */}
-        {isGenerating && (
-          <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
-            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-            <span>Recording... {formatElapsed(elapsedTime)}</span>
-            <span className="ml-auto">{captions.length} captions</span>
+        {isGenerating && status && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+              <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+              <span>{getProgressLabel()}</span>
+            </div>
+            <div className="w-full h-1.5 bg-[var(--bg-tertiary)] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                style={{ width: `${getProgressPercent()}%` }}
+              />
+            </div>
           </div>
         )}
 
         {error && (
-          <p className="text-red-400 text-xs bg-red-500/10 rounded p-2">{error}</p>
+          <p className="text-red-400 text-xs bg-red-500/10 rounded-xl p-2.5">{error}</p>
         )}
 
         {captions.length > 0 && (
@@ -210,7 +238,7 @@ export function CaptionEditor() {
                     </span>
                     <button
                       onClick={() => removeCaption(caption.id)}
-                      className="text-[var(--text-muted)] hover:text-red-400 transition-colors"
+                      className="text-[var(--text-muted)] hover:text-red-400 transition-colors btn-icon-press"
                     >
                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -221,7 +249,7 @@ export function CaptionEditor() {
                     type="text"
                     value={caption.text}
                     onChange={(e) => updateCaption(caption.id, { text: e.target.value })}
-                    className="w-full bg-[var(--bg-secondary)] text-[var(--text-primary)] text-sm px-2 py-1 rounded border border-[var(--border-color)] focus:border-blue-500 outline-none"
+                    className="w-full bg-[var(--bg-secondary)] text-[var(--text-primary)] text-sm px-2 py-1 rounded-lg border border-[var(--border-color)] focus:border-blue-500 outline-none"
                   />
                 </div>
               ))}
