@@ -68,12 +68,12 @@ export function EffectsPanel() {
                     key={effect.id}
                     onClick={() => toggleEffect(effect.id)}
                     disabled={!selectedClip}
-                    className={`w-full px-3 py-2 text-sm rounded text-left flex items-center justify-between transition-colors ${
+                    className={`w-full px-3 py-2 text-sm rounded-xl text-left flex items-center justify-between btn-press transition-colors ${
                       isApplied
                         ? 'bg-blue-600/20 border border-blue-500/50 text-blue-300'
                         : selectedClip
-                          ? 'bg-[var(--bg-tertiary)] border border-transparent hover:border-zinc-600 text-[var(--text-secondary)]'
-                          : 'bg-[var(--bg-tertiary)]/50 border border-transparent text-zinc-600 cursor-not-allowed'
+                          ? 'bg-[var(--hover-bg)] border border-transparent hover:border-[var(--accent)]/30 text-[var(--text-secondary)]'
+                          : 'bg-[var(--hover-bg)]/50 border border-transparent text-[var(--text-muted)] cursor-not-allowed'
                     }`}
                   >
                     <span>{effect.label}</span>

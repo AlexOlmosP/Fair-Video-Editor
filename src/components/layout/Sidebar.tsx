@@ -57,7 +57,7 @@ const TABS: { key: SidebarTab; label: string; icon: React.ReactNode }[] = [
   },
   {
     key: 'tts',
-    label: 'Text to Speech',
+    label: 'TTS',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
@@ -78,23 +78,20 @@ const TABS: { key: SidebarTab; label: string; icon: React.ReactNode }[] = [
 
 export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   return (
-    <div className="w-12 flex-shrink-0 bg-[var(--bg-secondary)] border-r border-[var(--border-color)] flex flex-col items-center py-2 gap-1">
+    <div className="w-16 flex-shrink-0 bg-[var(--bg-secondary)] border-r border-[var(--border-color)] flex flex-col items-center pt-3 gap-0.5">
       {TABS.map((tab) => (
-        <div key={tab.key} className="relative group">
-          <button
-            onClick={() => onTabChange(tab.key)}
-            className={`w-10 h-9 flex items-center justify-center rounded-md transition-colors ${
-              activeTab === tab.key
-                ? 'bg-zinc-700/60 text-white'
-                : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]/50'
-            }`}
-          >
-            {tab.icon}
-          </button>
-          <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-[var(--bg-tertiary)] text-[var(--text-primary)] text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 transition-opacity duration-150">
-            {tab.label}
-          </span>
-        </div>
+        <button
+          key={tab.key}
+          onClick={() => onTabChange(tab.key)}
+          className={`w-14 h-12 flex flex-col items-center justify-center gap-0.5 rounded-xl btn-icon-press ${
+            activeTab === tab.key
+              ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
+              : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--hover-bg)]'
+          }`}
+        >
+          {tab.icon}
+          <span className="text-[9px] font-medium leading-none">{tab.label}</span>
+        </button>
       ))}
     </div>
   );

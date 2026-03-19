@@ -307,9 +307,10 @@ export function ExportModal({ onClose }: ExportModalProps) {
   }, [selectedPreset, selectedRatio, isLoaded, load, exec, writeFile, readFile, onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md" onClick={onClose}>
       <div
-        className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl w-[420px] shadow-2xl"
+        className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl w-[420px]"
+        style={{ boxShadow: 'var(--modal-shadow)' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -331,10 +332,10 @@ export function ExportModal({ onClose }: ExportModalProps) {
                 <button
                   key={key}
                   onClick={() => setSelectedPreset(key)}
-                  className={`px-3 py-2 rounded text-sm text-left transition-colors ${
+                  className={`px-3 py-2 rounded-xl text-sm text-left transition-colors btn-press ${
                     selectedPreset === key
                       ? 'bg-blue-600 text-white'
-                      : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]'
+                      : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--hover-bg)]'
                   }`}
                 >
                   <div className="font-medium">{preset.name}</div>
@@ -355,10 +356,10 @@ export function ExportModal({ onClose }: ExportModalProps) {
             <div className="flex gap-1.5">
               <button
                 onClick={() => setSelectedRatio(null)}
-                className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors btn-press ${
                   selectedRatio === null
                     ? 'bg-blue-600 text-white'
-                    : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
+                    : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 Native
@@ -367,10 +368,10 @@ export function ExportModal({ onClose }: ExportModalProps) {
                 <button
                   key={preset.label}
                   onClick={() => setSelectedRatio(preset.label)}
-                  className={`px-2.5 py-1.5 rounded text-xs font-medium transition-colors ${
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors btn-press ${
                     selectedRatio === preset.label
                       ? 'bg-blue-600 text-white'
-                      : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
+                      : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)]'
                   }`}
                 >
                   {preset.label}
@@ -408,14 +409,15 @@ export function ExportModal({ onClose }: ExportModalProps) {
         <div className="px-5 py-4 border-t border-[var(--border-color)] flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm rounded bg-[var(--bg-tertiary)] hover:bg-[var(--bg-tertiary)] transition-colors"
+            className="px-4 py-2 text-sm rounded-xl bg-[var(--bg-tertiary)] hover:bg-[var(--hover-bg)] transition-colors btn-press"
           >
             Cancel
           </button>
           <button
             onClick={handleExport}
             disabled={isExporting}
-            className="px-4 py-2 text-sm rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+            className="px-4 py-2 text-sm rounded-xl bg-[var(--accent-export)] hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium btn-press"
+            style={{ boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)' }}
           >
             {isExporting ? 'Exporting...' : isLoading ? 'Loading FFmpeg...' : 'Export'}
           </button>

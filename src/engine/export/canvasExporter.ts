@@ -146,7 +146,7 @@ function renderFrameToCanvas(
     ctx.restore();
   }
 
-  // Text/caption clips
+  // Text/caption clips — same transform pipeline as media clips
   const activeTextClips = Object.values(clips).filter(
     (c) =>
       c.visible &&
@@ -156,40 +156,46 @@ function renderFrameToCanvas(
   );
   for (const textClip of activeTextClips) {
     const td = textClip.textData!;
+    const animOpacity = interpolateProperty(textClip, 'opacity', time, textClip.opacity);
+    const animScaleX = interpolateProperty(textClip, 'scaleX', time, textClip.scale.x);
+    const animScaleY = interpolateProperty(textClip, 'scaleY', time, textClip.scale.y);
+    const animRotation = interpolateProperty(textClip, 'rotation', time, textClip.rotation);
+    const animPosX = interpolateProperty(textClip, 'positionX', time, textClip.position.x);
+    const animPosY = interpolateProperty(textClip, 'positionY', time, textClip.position.y);
+
     ctx.save();
-    ctx.font = `bold ${td.fontSize}px ${td.fontFamily}`;
+    ctx.globalAlpha = animOpacity;
+
+    const tcx = width / 2 + animPosX * uScale;
+    const tcy = height / 2 + animPosY * uScale;
+    ctx.translate(tcx, tcy);
+    ctx.rotate((animRotation * Math.PI) / 180);
+    ctx.scale(animScaleX, animScaleY);
+
+    ctx.font = `bold ${Math.round(td.fontSize * uScale)}px ${td.fontFamily}`;
     ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
 
-    const textTrack = tracks[textClip.trackId];
-    const isCaption = textTrack?.type === 'caption';
-    ctx.textBaseline = isCaption ? 'bottom' : 'top';
-
-    const textX = width / 2 + textClip.position.x * uScale;
-    const textY = isCaption
-      ? height / 2 + (projectHeight / 2 - 60 + textClip.position.y) * uScale
-      : height / 2 + (-projectHeight / 2 + 60 + textClip.position.y) * uScale;
     const metrics = ctx.measureText(td.text);
-    const textW = metrics.width + 24;
-    const textH = td.fontSize + 16;
+    const textW = metrics.width + 24 * uScale;
+    const textH = (td.fontSize + 16) * uScale;
 
     if (td.backgroundColor) {
       ctx.fillStyle = td.backgroundColor;
-      const rx = 8;
-      const x = textX - textW / 2;
-      const y = isCaption ? textY - textH + 4 : textY - 4;
+      const rx = 8 * uScale;
       ctx.beginPath();
-      ctx.roundRect(x, y, textW, textH, rx);
+      ctx.roundRect(-textW / 2, -textH / 2, textW, textH, rx);
       ctx.fill();
     }
 
     if (td.strokeColor && td.strokeWidth) {
       ctx.strokeStyle = td.strokeColor;
-      ctx.lineWidth = td.strokeWidth;
-      ctx.strokeText(td.text, textX, textY);
+      ctx.lineWidth = td.strokeWidth * uScale;
+      ctx.strokeText(td.text, 0, 0);
     }
 
     ctx.fillStyle = td.color;
-    ctx.fillText(td.text, textX, textY);
+    ctx.fillText(td.text, 0, 0);
     ctx.restore();
   }
 }

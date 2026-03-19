@@ -116,7 +116,7 @@ export function TTSPanel() {
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Enter text to convert to speech..."
-          className="w-full h-24 bg-[var(--bg-tertiary)] text-[var(--text-primary)] text-sm px-3 py-2 rounded border border-[var(--border-color)] focus:border-blue-500 outline-none resize-none"
+          className="w-full h-24 bg-[var(--bg-tertiary)] text-[var(--text-primary)] text-sm px-3 py-2 rounded-xl border border-[var(--border-color)] focus:border-blue-500 outline-none resize-none"
         />
 
         <div>
@@ -124,7 +124,7 @@ export function TTSPanel() {
           <select
             value={selectedVoice}
             onChange={(e) => setSelectedVoice(e.target.value)}
-            className="w-full bg-[var(--bg-tertiary)] text-[var(--text-primary)] text-sm px-2 py-1.5 rounded border border-[var(--border-color)] outline-none"
+            className="w-full bg-[var(--bg-tertiary)] text-[var(--text-primary)] text-sm px-2 py-1.5 rounded-xl border border-[var(--border-color)] outline-none"
           >
             {Array.from(langGroups.entries()).map(([lang, langVoices]) => (
               <optgroup key={lang} label={lang.toUpperCase()}>
@@ -148,7 +148,7 @@ export function TTSPanel() {
               step={0.1}
               value={rate}
               onChange={(e) => setRate(parseFloat(e.target.value))}
-              className="w-full h-1 bg-zinc-700 rounded appearance-none cursor-pointer accent-blue-500"
+              className="w-full h-1 bg-[var(--hover-bg)] rounded appearance-none cursor-pointer accent-blue-500"
             />
           </div>
           <div>
@@ -160,13 +160,13 @@ export function TTSPanel() {
               step={0.1}
               value={pitch}
               onChange={(e) => setPitch(parseFloat(e.target.value))}
-              className="w-full h-1 bg-zinc-700 rounded appearance-none cursor-pointer accent-blue-500"
+              className="w-full h-1 bg-[var(--hover-bg)] rounded appearance-none cursor-pointer accent-blue-500"
             />
           </div>
         </div>
 
         {text.trim() && (
-          <p className="text-zinc-600 text-[10px]">
+          <p className="text-[var(--text-muted)] text-[10px]">
             Est. duration: {estimateDuration(text, rate).toFixed(1)}s
           </p>
         )}
@@ -177,14 +177,14 @@ export function TTSPanel() {
           <button
             onClick={isPreviewing ? handleStop : handlePreview}
             disabled={!text.trim()}
-            className="flex-1 px-3 py-1.5 text-sm rounded bg-[var(--bg-tertiary)] hover:bg-zinc-700 disabled:opacity-50 transition-colors"
+            className="flex-1 px-3 py-1.5 text-sm rounded-xl bg-[var(--bg-tertiary)] hover:bg-[var(--hover-bg)] disabled:opacity-50 btn-press transition-colors"
           >
             {isPreviewing ? 'Stop' : 'Preview'}
           </button>
           <button
             onClick={handleAddToTimeline}
             disabled={!text.trim()}
-            className="flex-1 px-3 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50 transition-colors font-medium"
+            className="flex-1 px-3 py-1.5 text-sm rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 btn-press transition-colors font-medium"
           >
             Add to Timeline
           </button>

@@ -174,7 +174,7 @@ export function Track({ track, pixelsPerSecond }: TrackProps) {
       {gaps.map((gap, i) => (
         <button
           key={i}
-          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-30 w-5 h-5 rounded-full bg-zinc-700 hover:bg-blue-600 text-[var(--text-secondary)] hover:text-white flex items-center justify-center text-xs transition-all opacity-0 hover:opacity-100 group-hover:opacity-60"
+          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-30 w-5 h-5 rounded-full bg-[var(--bg-tertiary)] hover:bg-[var(--accent)] text-[var(--text-secondary)] hover:text-white flex items-center justify-center text-xs transition-all opacity-0 hover:opacity-100 group-hover:opacity-60 btn-icon-press"
           style={{ left: gap.leftPx }}
           title="Add transition"
           onClick={(e) => {

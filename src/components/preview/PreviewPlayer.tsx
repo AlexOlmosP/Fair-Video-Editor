@@ -240,7 +240,7 @@ export function PreviewPlayer() {
       }
     }
 
-    // Draw text/caption clips
+    // Draw text/caption clips using the same transform pipeline as media clips
     const activeTextClips = Object.values(clips).filter(
       (c) =>
         c.visible &&
@@ -250,18 +250,28 @@ export function PreviewPlayer() {
     );
     for (const textClip of activeTextClips) {
       const td = textClip.textData!;
+      const animOpacity = interpolateProperty(textClip, 'opacity', playheadTime, textClip.opacity);
+      const animScaleX = interpolateProperty(textClip, 'scaleX', playheadTime, textClip.scale.x);
+      const animScaleY = interpolateProperty(textClip, 'scaleY', playheadTime, textClip.scale.y);
+      const animRotation = interpolateProperty(textClip, 'rotation', playheadTime, textClip.rotation);
+      const animPosX = interpolateProperty(textClip, 'positionX', playheadTime, textClip.position.x);
+      const animPosY = interpolateProperty(textClip, 'positionY', playheadTime, textClip.position.y);
+
       ctx.save();
+      ctx.globalAlpha = animOpacity;
+
+      // Transform: same as media clips
+      const tcx = (projectW / 2 + animPosX) * sx;
+      const tcy = (projectH / 2 + animPosY) * sy;
+      ctx.translate(tcx, tcy);
+      ctx.rotate((animRotation * Math.PI) / 180);
+      ctx.scale(animScaleX, animScaleY);
+
+      // Measure text at base size
       ctx.font = `bold ${Math.round(td.fontSize * sy)}px ${td.fontFamily}`;
       ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
 
-      const textTrack = state.tracks[textClip.trackId];
-      const isCaption = textTrack?.type === 'caption';
-      ctx.textBaseline = isCaption ? 'bottom' : 'top';
-
-      const textX = (projectW / 2 + textClip.position.x) * sx;
-      const textY = isCaption
-        ? (projectH - 60 + textClip.position.y) * sy
-        : (60 + textClip.position.y) * sy;
       const metrics = ctx.measureText(td.text);
       const textW = metrics.width + 24 * sx;
       const textH = (td.fontSize + 16) * sy;
@@ -269,41 +279,52 @@ export function PreviewPlayer() {
       if (td.backgroundColor) {
         ctx.fillStyle = td.backgroundColor;
         const rx = 8 * sx;
-        const x = textX - textW / 2;
-        const y = isCaption ? textY - textH + 4 * sy : textY - 4 * sy;
         ctx.beginPath();
-        ctx.roundRect(x, y, textW, textH, rx);
+        ctx.roundRect(-textW / 2, -textH / 2, textW, textH, rx);
         ctx.fill();
       }
 
       if (td.strokeColor && td.strokeWidth) {
         ctx.strokeStyle = td.strokeColor;
         ctx.lineWidth = td.strokeWidth * sx;
-        ctx.strokeText(td.text, textX, textY);
+        ctx.strokeText(td.text, 0, 0);
       }
 
       ctx.fillStyle = td.color;
-      ctx.fillText(td.text, textX, textY);
+      ctx.fillText(td.text, 0, 0);
       ctx.restore();
     }
 
-    // Draw selection border on selected clips
+    // Draw selection borders for ALL selected clips (media + text)
     const { selectedClipIds } = state;
-    for (const clip of activeClips) {
+    const allSelectableClips = [...activeClips, ...activeTextClips];
+    for (const clip of allSelectableClips) {
       if (!selectedClipIds.includes(clip.id)) continue;
       if (clip.transitionData) continue;
-      const source = elements[clip.assetId];
-      if (!source) continue;
 
-      const srcW = ('videoWidth' in source ? source.videoWidth : source.width) || projectW;
-      const srcH = ('videoHeight' in source ? source.videoHeight : source.height) || projectH;
-      const animSX = interpolateProperty(clip, 'scaleX', playheadTime, clip.scale.x);
-      const animSY = interpolateProperty(clip, 'scaleY', playheadTime, clip.scale.y);
+      let drawW: number, drawH: number;
+
+      if (clip.textData) {
+        // For text clips, compute bounds from text metrics
+        const td = clip.textData;
+        ctx.save();
+        ctx.font = `bold ${Math.round(td.fontSize * sy)}px ${td.fontFamily}`;
+        const metrics = ctx.measureText(td.text);
+        drawW = (metrics.width / sy + 24) * clip.scale.x * sx;
+        drawH = (td.fontSize + 16) * clip.scale.y * sy;
+        ctx.restore();
+      } else {
+        const source = elements[clip.assetId];
+        if (!source) continue;
+        const srcW = ('videoWidth' in source ? source.videoWidth : source.width) || projectW;
+        const srcH = ('videoHeight' in source ? source.videoHeight : source.height) || projectH;
+        const scaleF = Math.min(projectW / srcW, projectH / srcH);
+        drawW = srcW * scaleF * clip.scale.x * sx;
+        drawH = srcH * scaleF * clip.scale.y * sy;
+      }
+
       const animPX = interpolateProperty(clip, 'positionX', playheadTime, clip.position.x);
       const animPY = interpolateProperty(clip, 'positionY', playheadTime, clip.position.y);
-      const scaleF = Math.min(projectW / srcW, projectH / srcH);
-      const drawW = srcW * scaleF * animSX * sx;
-      const drawH = srcH * scaleF * animSY * sy;
       const clipCx = (projectW / 2 + animPX) * sx;
       const clipCy = (projectH / 2 + animPY) * sy;
 
@@ -321,7 +342,6 @@ export function PreviewPlayer() {
         [clipCx + drawW / 2, clipCy + drawH / 2],
       ];
       for (const [hx, hy] of corners) {
-        // White fill with blue border for visibility
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(hx - hs / 2, hy - hs / 2, hs, hs);
         ctx.strokeStyle = '#3b82f6';
@@ -437,7 +457,8 @@ export function PreviewPlayer() {
             ref={canvasRef}
             width={canvasSize.w}
             height={canvasSize.h}
-            className="w-full h-full rounded border border-[var(--border-color)] bg-black"
+            className="w-full h-full rounded-2xl border border-[var(--border-color)] bg-black"
+            style={{ boxShadow: 'var(--elevated-shadow)' }}
           />
           <CanvasInteraction canvasRef={canvasRef} />
         </div>

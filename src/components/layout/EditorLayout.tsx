@@ -54,9 +54,9 @@ export function EditorLayout() {
       onDrop={handleGlobalDrop}
     >
       {isDragOver && (
-        <div className="absolute inset-0 z-50 bg-blue-600/10 border-4 border-dashed border-blue-500 flex items-center justify-center pointer-events-none">
-          <div className="bg-[var(--bg-secondary)]/90 px-8 py-4 rounded-xl border border-blue-500/50">
-            <span className="text-blue-400 text-lg font-medium">Drop files anywhere to import</span>
+        <div className="absolute inset-0 z-50 bg-[var(--accent)]/10 border-4 border-dashed border-[var(--accent)] flex items-center justify-center pointer-events-none backdrop-blur-sm">
+          <div className="bg-[var(--bg-secondary)] px-8 py-4 rounded-2xl border border-[var(--accent)]/50" style={{ boxShadow: 'var(--elevated-shadow)' }}>
+            <span className="text-[var(--accent)] text-lg font-medium">Drop files anywhere to import</span>
           </div>
         </div>
       )}
@@ -68,10 +68,10 @@ export function EditorLayout() {
         {/* Left Panel — Sidebar + Content */}
         <div
           className="flex-shrink-0 bg-[var(--bg-secondary)] flex"
-          style={{ width: leftPanelWidth }}
+          style={{ width: leftPanelWidth, boxShadow: 'var(--panel-shadow)' }}
         >
           <Sidebar activeTab={leftTab} onTabChange={setLeftTab} />
-          <div className="flex-1 overflow-y-auto border-r border-[var(--border-color)]">
+          <div className="flex-1 overflow-y-auto border-r border-[var(--border-color)] panel-enter" key={leftTab}>
             {leftTab === 'media' && <AssetsPanel />}
             {leftTab === 'text' && <TextPanel />}
             {leftTab === 'emojis' && <EmojiPanel />}
@@ -84,7 +84,7 @@ export function EditorLayout() {
 
         {/* Left Panel Resize Handle */}
         <div
-          className="w-1 cursor-col-resize bg-[var(--bg-tertiary)] hover:bg-blue-500 transition-colors flex-shrink-0"
+          className="w-1.5 cursor-col-resize bg-transparent hover:bg-[var(--accent)]/50 transition-all duration-200 flex-shrink-0"
           onMouseDown={(e) => {
             e.preventDefault();
             const startX = e.clientX;
@@ -104,7 +104,7 @@ export function EditorLayout() {
         {/* Preview Area */}
         <div className="flex-1 min-w-0 bg-[var(--bg-primary)] flex flex-col">
           {/* Theme Toggle - centered above preview */}
-          <div className="flex justify-center py-1 flex-shrink-0">
+          <div className="flex justify-center py-1.5 flex-shrink-0">
             <ThemeToggle />
           </div>
           <div className="flex-1 flex items-center justify-center min-h-0">
@@ -116,7 +116,7 @@ export function EditorLayout() {
         {showRightPanel && (
           <>
             <div
-              className="w-1 cursor-col-resize bg-[var(--bg-tertiary)] hover:bg-blue-500 transition-colors flex-shrink-0"
+              className="w-1.5 cursor-col-resize bg-transparent hover:bg-[var(--accent)]/50 transition-all duration-200 flex-shrink-0"
               onMouseDown={(e) => {
                 e.preventDefault();
                 const startX = e.clientX;
@@ -134,7 +134,7 @@ export function EditorLayout() {
             />
             <div
               className="flex-shrink-0 border-l border-[var(--border-color)] bg-[var(--bg-secondary)] overflow-y-auto"
-              style={{ width: rightPanelWidth }}
+              style={{ width: rightPanelWidth, boxShadow: 'var(--panel-shadow)' }}
             >
               <PropertiesPanel />
             </div>
@@ -144,7 +144,7 @@ export function EditorLayout() {
 
       {/* Timeline Resize Handle */}
       <div
-        className="h-1 cursor-row-resize bg-[var(--bg-tertiary)] hover:bg-blue-500 transition-colors flex-shrink-0"
+        className="h-1.5 cursor-row-resize bg-transparent hover:bg-[var(--accent)]/50 transition-all duration-200 flex-shrink-0"
         onMouseDown={(e) => {
           e.preventDefault();
           const startY = e.clientY;

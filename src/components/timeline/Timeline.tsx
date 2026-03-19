@@ -28,13 +28,13 @@ export function Timeline() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => addTrack('video')}
-            className="px-2 py-1 text-xs bg-[var(--bg-tertiary)] hover:bg-zinc-700 rounded transition-colors"
+            className="px-2 py-1 text-xs bg-[var(--bg-tertiary)] hover:bg-[var(--hover-bg)] rounded-lg transition-colors btn-press"
           >
             + Video Track
           </button>
           <button
             onClick={() => addTrack('audio')}
-            className="px-2 py-1 text-xs bg-[var(--bg-tertiary)] hover:bg-zinc-700 rounded transition-colors"
+            className="px-2 py-1 text-xs bg-[var(--bg-tertiary)] hover:bg-[var(--hover-bg)] rounded-lg transition-colors btn-press"
           >
             + Audio Track
           </button>
@@ -48,7 +48,7 @@ export function Timeline() {
             step={0.1}
             value={zoom}
             onChange={(e) => useTimelineStore.getState().setZoom(parseFloat(e.target.value))}
-            className="w-24 h-1 bg-zinc-700 rounded appearance-none cursor-pointer accent-blue-500"
+            className="w-24 h-1 bg-[var(--hover-bg)] rounded appearance-none cursor-pointer accent-blue-500"
           />
         </div>
       </div>

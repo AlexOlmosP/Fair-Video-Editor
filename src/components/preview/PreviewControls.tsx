@@ -9,9 +9,9 @@ export function PreviewControls() {
     usePlayback();
 
   return (
-    <div className="flex items-center gap-4 flex-shrink-0">
+    <div className="flex items-center gap-4 flex-shrink-0 bg-[var(--bg-secondary)] rounded-2xl px-5 py-2.5 border border-[var(--border-color)]" style={{ boxShadow: 'var(--panel-shadow)' }}>
       {/* Time Display */}
-      <span className="text-xs text-[var(--text-secondary)] font-mono w-20 text-right">
+      <span className="text-xs text-[var(--text-secondary)] font-mono w-20 text-right bg-[var(--bg-tertiary)] px-2 py-1 rounded-lg">
         {secondsToDisplay(playheadTime)}
       </span>
 
@@ -19,7 +19,7 @@ export function PreviewControls() {
       <div className="flex items-center gap-1">
         <button
           onClick={() => skipBackward(5)}
-          className="p-2 rounded hover:bg-[var(--bg-tertiary)] transition-colors"
+          className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-colors btn-icon-press"
           title="Skip backward 5s"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -29,7 +29,8 @@ export function PreviewControls() {
 
         <button
           onClick={togglePlayback}
-          className="p-2 rounded-full bg-[var(--bg-tertiary)] hover:bg-zinc-700 transition-colors"
+          className="rounded-full bg-[var(--accent)] hover:bg-blue-400 text-white btn-press p-3 transition-colors"
+          style={{ boxShadow: '0 2px 8px rgba(59, 130, 246, 0.25)' }}
           title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
         >
           {isPlaying ? (
@@ -45,7 +46,7 @@ export function PreviewControls() {
 
         <button
           onClick={() => skipForward(5)}
-          className="p-2 rounded hover:bg-[var(--bg-tertiary)] transition-colors"
+          className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-colors btn-icon-press"
           title="Skip forward 5s"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -55,7 +56,7 @@ export function PreviewControls() {
       </div>
 
       {/* Duration */}
-      <span className="text-xs text-[var(--text-secondary)] font-mono w-20">
+      <span className="text-xs text-[var(--text-secondary)] font-mono w-20 bg-[var(--bg-tertiary)] px-2 py-1 rounded-lg">
         {secondsToDisplay(duration)}
       </span>
     </div>

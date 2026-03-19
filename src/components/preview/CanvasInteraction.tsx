@@ -88,14 +88,38 @@ export function CanvasInteraction({ canvasRef }: CanvasInteractionProps) {
       const { px, py } = clientToProject(clientX, clientY);
 
       for (const clip of allClips) {
-        const source = elements[clip.assetId];
-        if (!source) continue;
+        let drawW: number, drawH: number;
 
-        const srcW = ('videoWidth' in source ? source.videoWidth : source.width) || width;
-        const srcH = ('videoHeight' in source ? source.videoHeight : source.height) || height;
-        const scaleF = Math.min(width / srcW, height / srcH);
-        const drawW = srcW * scaleF * clip.scale.x;
-        const drawH = srcH * scaleF * clip.scale.y;
+        if (clip.textData) {
+          // For text clips, compute bounds from text metrics
+          const td = clip.textData;
+          const canvas = canvasRef.current;
+          if (canvas) {
+            const tmpCtx = canvas.getContext('2d');
+            if (tmpCtx) {
+              tmpCtx.save();
+              tmpCtx.font = `bold ${td.fontSize}px ${td.fontFamily}`;
+              const m = tmpCtx.measureText(td.text);
+              drawW = (m.width + 24) * clip.scale.x;
+              drawH = (td.fontSize + 16) * clip.scale.y;
+              tmpCtx.restore();
+            } else {
+              drawW = (td.fontSize * td.text.length * 0.6 + 24) * clip.scale.x;
+              drawH = (td.fontSize + 16) * clip.scale.y;
+            }
+          } else {
+            drawW = (td.fontSize * td.text.length * 0.6 + 24) * clip.scale.x;
+            drawH = (td.fontSize + 16) * clip.scale.y;
+          }
+        } else {
+          const source = elements[clip.assetId];
+          if (!source) continue;
+          const srcW = ('videoWidth' in source ? source.videoWidth : source.width) || width;
+          const srcH = ('videoHeight' in source ? source.videoHeight : source.height) || height;
+          const scaleF = Math.min(width / srcW, height / srcH);
+          drawW = srcW * scaleF * clip.scale.x;
+          drawH = srcH * scaleF * clip.scale.y;
+        }
 
         const cx = clip.position.x;
         const cy = clip.position.y;
@@ -223,34 +247,41 @@ export function CanvasInteraction({ canvasRef }: CanvasInteractionProps) {
         // Compute clip dimensions to snap edges
         const clip = useTimelineStore.getState().clips[drag.clipId];
         if (clip) {
-          const { elements } = useMediaStore.getState();
-          const source = elements[clip.assetId];
-          if (source) {
-            const srcW = ('videoWidth' in source ? source.videoWidth : source.width) || width;
-            const srcH = ('videoHeight' in source ? source.videoHeight : source.height) || height;
-            const scaleF = Math.min(width / srcW, height / srcH);
-            const halfW = (srcW * scaleF * clip.scale.x) / 2;
-            const halfH = (srcH * scaleF * clip.scale.y) / 2;
+          let halfW = 0, halfH = 0;
+          if (clip.textData) {
+            const td = clip.textData;
+            const canvas = canvasRef.current;
+            if (canvas) {
+              const tmpCtx = canvas.getContext('2d');
+              if (tmpCtx) {
+                tmpCtx.save();
+                tmpCtx.font = `bold ${td.fontSize}px ${td.fontFamily}`;
+                const m = tmpCtx.measureText(td.text);
+                halfW = (m.width + 24) * clip.scale.x / 2;
+                halfH = (td.fontSize + 16) * clip.scale.y / 2;
+                tmpCtx.restore();
+              }
+            }
+          } else {
+            const { elements } = useMediaStore.getState();
+            const source = elements[clip.assetId];
+            if (source) {
+              const srcW = ('videoWidth' in source ? source.videoWidth : source.width) || width;
+              const srcH = ('videoHeight' in source ? source.videoHeight : source.height) || height;
+              const scaleF = Math.min(width / srcW, height / srcH);
+              halfW = (srcW * scaleF * clip.scale.x) / 2;
+              halfH = (srcH * scaleF * clip.scale.y) / 2;
+            }
+          }
+
+          if (halfW > 0 && halfH > 0) {
             const halfCanvasW = width / 2;
             const halfCanvasH = height / 2;
-            const snapThreshold = 15; // pixels in project coords
-
-            // Snap left edge
-            if (Math.abs((newX - halfW) - (-halfCanvasW)) < snapThreshold) {
-              newX = -halfCanvasW + halfW;
-            }
-            // Snap right edge
-            if (Math.abs((newX + halfW) - halfCanvasW) < snapThreshold) {
-              newX = halfCanvasW - halfW;
-            }
-            // Snap top edge
-            if (Math.abs((newY - halfH) - (-halfCanvasH)) < snapThreshold) {
-              newY = -halfCanvasH + halfH;
-            }
-            // Snap bottom edge
-            if (Math.abs((newY + halfH) - halfCanvasH) < snapThreshold) {
-              newY = halfCanvasH - halfH;
-            }
+            const snapThreshold = 15;
+            if (Math.abs((newX - halfW) - (-halfCanvasW)) < snapThreshold) newX = -halfCanvasW + halfW;
+            if (Math.abs((newX + halfW) - halfCanvasW) < snapThreshold) newX = halfCanvasW - halfW;
+            if (Math.abs((newY - halfH) - (-halfCanvasH)) < snapThreshold) newY = -halfCanvasH + halfH;
+            if (Math.abs((newY + halfH) - halfCanvasH) < snapThreshold) newY = halfCanvasH - halfH;
           }
         }
 
@@ -262,15 +293,37 @@ export function CanvasInteraction({ canvasRef }: CanvasInteractionProps) {
         const clip = useTimelineStore.getState().clips[drag.clipId];
         if (!clip) return;
 
-        const { elements } = useMediaStore.getState();
-        const source = elements[clip.assetId];
-        if (!source) return;
-
-        const srcW = ('videoWidth' in source ? source.videoWidth : source.width) || width;
-        const srcH = ('videoHeight' in source ? source.videoHeight : source.height) || height;
-        const scaleF = Math.min(width / srcW, height / srcH);
-        const baseW = srcW * scaleF;
-        const baseH = srcH * scaleF;
+        let baseW: number, baseH: number;
+        if (clip.textData) {
+          const td = clip.textData;
+          const canvas = canvasRef.current;
+          if (canvas) {
+            const tmpCtx = canvas.getContext('2d');
+            if (tmpCtx) {
+              tmpCtx.save();
+              tmpCtx.font = `bold ${td.fontSize}px ${td.fontFamily}`;
+              const m = tmpCtx.measureText(td.text);
+              baseW = m.width + 24;
+              baseH = td.fontSize + 16;
+              tmpCtx.restore();
+            } else {
+              baseW = td.fontSize * td.text.length * 0.6 + 24;
+              baseH = td.fontSize + 16;
+            }
+          } else {
+            baseW = td.fontSize * td.text.length * 0.6 + 24;
+            baseH = td.fontSize + 16;
+          }
+        } else {
+          const { elements } = useMediaStore.getState();
+          const source = elements[clip.assetId];
+          if (!source) return;
+          const srcW = ('videoWidth' in source ? source.videoWidth : source.width) || width;
+          const srcH = ('videoHeight' in source ? source.videoHeight : source.height) || height;
+          const scaleF = Math.min(width / srcW, height / srcH);
+          baseW = srcW * scaleF;
+          baseH = srcH * scaleF;
+        }
 
         let dxNorm = deltaX / baseW;
         let dyNorm = deltaY / baseH;
@@ -334,6 +387,77 @@ export function CanvasInteraction({ canvasRef }: CanvasInteractionProps) {
     cursor = 'nesw-resize';
   }
 
+  // Double-click to edit text inline
+  const [editingClipId, setEditingClipId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  const editInputRef = useRef<HTMLTextAreaElement>(null);
+
+  const onDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      const hit = hitTestClip(e.clientX, e.clientY);
+      if (!hit) return;
+      const { clips } = useTimelineStore.getState();
+      const clip = clips[hit.clipId];
+      if (!clip?.textData) return;
+
+      setEditingClipId(hit.clipId);
+      setEditText(clip.textData.text);
+      setTimeout(() => editInputRef.current?.focus(), 50);
+    },
+    [hitTestClip]
+  );
+
+  const commitEdit = useCallback(() => {
+    if (editingClipId && editText.trim()) {
+      const { clips, updateClip } = useTimelineStore.getState();
+      const clip = clips[editingClipId];
+      if (clip?.textData) {
+        updateClip(editingClipId, {
+          textData: { ...clip.textData, text: editText },
+        });
+      }
+    }
+    setEditingClipId(null);
+  }, [editingClipId, editText]);
+
+  // Compute position for the edit overlay
+  const getEditOverlayStyle = useCallback((): React.CSSProperties => {
+    if (!editingClipId) return { display: 'none' };
+    const canvas = canvasRef.current;
+    if (!canvas) return { display: 'none' };
+    const { clips } = useTimelineStore.getState();
+    const clip = clips[editingClipId];
+    if (!clip?.textData) return { display: 'none' };
+    const rect = canvas.getBoundingClientRect();
+    const overlay = overlayRef.current;
+    if (!overlay) return { display: 'none' };
+    const oRect = overlay.getBoundingClientRect();
+    const { width: pw, height: ph } = useProjectStore.getState().settings;
+
+    const canvasX = ((pw / 2 + clip.position.x) / pw) * rect.width + (rect.left - oRect.left);
+    const canvasY = ((ph / 2 + clip.position.y) / ph) * rect.height + (rect.top - oRect.top);
+
+    return {
+      position: 'absolute',
+      left: canvasX,
+      top: canvasY,
+      transform: `translate(-50%, -50%) scale(${clip.scale.x}, ${clip.scale.y})`,
+      fontSize: `${clip.textData.fontSize * (rect.height / ph)}px`,
+      fontFamily: clip.textData.fontFamily,
+      color: clip.textData.color,
+      background: clip.textData.backgroundColor || 'rgba(0,0,0,0.7)',
+      border: '2px solid var(--accent)',
+      borderRadius: '8px',
+      padding: '4px 8px',
+      outline: 'none',
+      textAlign: 'center' as const,
+      zIndex: 100,
+      minWidth: '60px',
+      resize: 'none' as const,
+      fontWeight: 'bold',
+    };
+  }, [editingClipId, canvasRef]);
+
   return (
     <div
       ref={overlayRef}
@@ -341,6 +465,22 @@ export function CanvasInteraction({ canvasRef }: CanvasInteractionProps) {
       style={{ cursor }}
       onMouseDown={onMouseDown}
       onMouseMove={onMouseMoveOverlay}
-    />
+      onDoubleClick={onDoubleClick}
+    >
+      {editingClipId && (
+        <textarea
+          ref={editInputRef}
+          value={editText}
+          onChange={(e) => setEditText(e.target.value)}
+          onBlur={commitEdit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commitEdit(); }
+            if (e.key === 'Escape') setEditingClipId(null);
+          }}
+          style={getEditOverlayStyle()}
+          rows={1}
+        />
+      )}
+    </div>
   );
 }

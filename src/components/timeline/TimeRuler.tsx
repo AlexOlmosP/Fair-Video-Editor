@@ -34,7 +34,7 @@ export function TimeRuler({ pixelsPerSecond }: TimeRulerProps) {
 
   return (
     <div
-      className="h-6 border-b border-zinc-800 relative cursor-pointer flex-shrink-0 sticky top-0 bg-zinc-900 z-10"
+      className="h-6 border-b border-[var(--border-color)] relative cursor-pointer flex-shrink-0 sticky top-0 bg-[var(--bg-secondary)] z-10"
       style={{ width: visibleDuration * pixelsPerSecond }}
       onClick={handleClick}
     >
@@ -44,10 +44,10 @@ export function TimeRuler({ pixelsPerSecond }: TimeRulerProps) {
           className="absolute top-0 h-full flex flex-col items-center"
           style={{ left: t * pixelsPerSecond }}
         >
-          <span className="text-[10px] text-zinc-500 mt-0.5 select-none">
+          <span className="text-[10px] text-[var(--text-muted)] mt-0.5 select-none">
             {formatTimeLabel(t)}
           </span>
-          <div className="w-px flex-1 bg-zinc-700 opacity-50" />
+          <div className="w-px flex-1 bg-[var(--border-color)] opacity-50" />
         </div>
       ))}
     </div>

@@ -41,7 +41,7 @@ export function KeyframeToggle({ clipId, property, currentValue }: KeyframeEdito
   };
 
   // Diamond icon states
-  let diamondClass = 'text-zinc-600 hover:text-zinc-400'; // no keyframes
+  let diamondClass = 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'; // no keyframes
   if (kfAtTime) {
     diamondClass = 'text-yellow-400'; // keyframe at current time
   } else if (hasKeyframes) {

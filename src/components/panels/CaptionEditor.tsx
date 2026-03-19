@@ -154,7 +154,7 @@ export function CaptionEditor() {
       </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
         {/* Info notice */}
-        <div className="text-[10px] text-[var(--text-muted)] bg-[var(--bg-tertiary)] rounded-md p-2.5 leading-relaxed">
+        <div className="text-[10px] text-[var(--text-muted)] bg-[var(--bg-tertiary)] rounded-xl p-2.5 leading-relaxed">
           <p className="font-medium mb-1">How it works:</p>
           <p>Captions use your browser&apos;s speech recognition. The video will play through your speakers and the browser listens via your <strong>microphone</strong>.</p>
           <p className="mt-1">For best results: turn up volume, reduce background noise, and use Chrome or Edge.</p>
@@ -165,14 +165,14 @@ export function CaptionEditor() {
           <button
             onClick={handleGenerate}
             disabled={isGenerating}
-            className="flex-1 px-3 py-2 text-sm rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+            className="flex-1 px-3 py-2 text-sm rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed btn-press transition-colors font-medium"
           >
             {isGenerating ? 'Listening...' : 'Generate Captions'}
           </button>
           {isGenerating && (
             <button
               onClick={handleStop}
-              className="px-3 py-2 text-sm rounded bg-red-600 hover:bg-red-500 transition-colors font-medium"
+              className="px-3 py-2 text-sm rounded-xl bg-red-600 hover:bg-red-500 btn-press transition-colors font-medium"
             >
               Stop
             </button>
@@ -196,14 +196,14 @@ export function CaptionEditor() {
           <>
             <button
               onClick={handleAddToTimeline}
-              className="w-full px-3 py-1.5 text-sm rounded bg-green-700 hover:bg-green-600 transition-colors font-medium"
+              className="w-full px-3 py-1.5 text-sm rounded-xl bg-green-700 hover:bg-green-600 btn-press transition-colors font-medium"
             >
               Add to Timeline ({captions.length} captions)
             </button>
 
             <div className="space-y-2">
               {captions.map((caption) => (
-                <div key={caption.id} className="bg-[var(--bg-tertiary)] rounded p-2 space-y-1">
+                <div key={caption.id} className="bg-[var(--bg-tertiary)] rounded-xl p-2 space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] text-[var(--text-muted)] font-mono">
                       {caption.startTime.toFixed(1)}s - {caption.endTime.toFixed(1)}s

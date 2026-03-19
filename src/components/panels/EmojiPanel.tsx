@@ -69,7 +69,7 @@ export function EmojiPanel() {
           placeholder="Search emojis..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full px-2.5 py-1.5 text-xs bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none focus:border-blue-500"
+          className="w-full px-2.5 py-1.5 text-xs bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none focus:border-blue-500"
         />
       </div>
 
@@ -80,7 +80,7 @@ export function EmojiPanel() {
             <button
               key={cat.name}
               onClick={() => setActiveCategory(cat.name)}
-              className={`px-2 py-1 text-[10px] font-medium rounded whitespace-nowrap transition-colors ${
+              className={`px-2 py-1 text-[10px] font-medium rounded-lg whitespace-nowrap btn-press transition-colors ${
                 activeCategory === cat.name
                   ? 'bg-blue-600 text-white'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
@@ -99,7 +99,7 @@ export function EmojiPanel() {
             <button
               key={`${emoji}-${i}`}
               onClick={() => addEmoji(emoji)}
-              className="w-full aspect-square flex items-center justify-center text-2xl rounded hover:bg-[var(--bg-tertiary)] transition-colors"
+              className="w-full aspect-square flex items-center justify-center text-2xl rounded btn-icon-press hover:scale-110 hover:bg-[var(--bg-tertiary)] transition-all"
               title={`Add ${emoji}`}
             >
               {emoji}

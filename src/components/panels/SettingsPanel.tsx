@@ -43,14 +43,14 @@ export function SettingsPanel() {
                 <button
                   key={preset.label}
                   onClick={() => updateSettings({ width: preset.width, height: preset.height })}
-                  className={`flex flex-col items-center gap-1.5 px-3 py-3 rounded-lg transition-colors ${
+                  className={`flex flex-col items-center gap-1.5 px-3 py-3 rounded-lg btn-press transition-colors ${
                     isActive
                       ? 'bg-blue-600/20 border border-blue-500 text-white'
-                      : 'bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-zinc-700'
+                      : 'bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[var(--hover-bg)]'
                   }`}
                 >
                   <div
-                    className={`border-2 rounded-sm ${isActive ? 'border-blue-400' : 'border-zinc-500'}`}
+                    className={`border-2 rounded-sm ${isActive ? 'border-blue-400' : 'border-[var(--text-muted)]'}`}
                     style={{ width: aspectW, height: aspectH }}
                   />
                   <span className="text-xs font-medium">{preset.label}</span>
@@ -69,14 +69,14 @@ export function SettingsPanel() {
               type="number"
               value={settings.width}
               onChange={(e) => updateSettings({ width: Math.max(100, parseInt(e.target.value) || 100) })}
-              className="flex-1 px-2 py-1.5 text-xs bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded text-[var(--text-primary)] outline-none focus:border-blue-500"
+              className="flex-1 px-2 py-1.5 text-xs bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl text-[var(--text-primary)] outline-none focus:border-blue-500"
             />
             <span className="text-[var(--text-muted)] text-xs">x</span>
             <input
               type="number"
               value={settings.height}
               onChange={(e) => updateSettings({ height: Math.max(100, parseInt(e.target.value) || 100) })}
-              className="flex-1 px-2 py-1.5 text-xs bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded text-[var(--text-primary)] outline-none focus:border-blue-500"
+              className="flex-1 px-2 py-1.5 text-xs bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl text-[var(--text-primary)] outline-none focus:border-blue-500"
             />
           </div>
         </div>
@@ -87,10 +87,10 @@ export function SettingsPanel() {
           <div className="flex gap-1 flex-wrap">
             <button
               onClick={() => setSafeAreaRatio(null)}
-              className={`px-2.5 py-1.5 rounded text-[10px] font-medium transition-colors ${
+              className={`px-2.5 py-1.5 rounded-lg text-[10px] font-medium btn-press transition-colors ${
                 safeAreaRatio === null
                   ? 'bg-blue-600 text-white'
-                  : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-zinc-700 hover:text-[var(--text-primary)]'
+                  : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)]'
               }`}
             >
               Off
@@ -99,10 +99,10 @@ export function SettingsPanel() {
               <button
                 key={preset.label}
                 onClick={() => setSafeAreaRatio(safeAreaRatio === preset.label ? null : preset.label)}
-                className={`px-2.5 py-1.5 rounded text-[10px] font-medium transition-colors ${
+                className={`px-2.5 py-1.5 rounded-lg text-[10px] font-medium btn-press transition-colors ${
                   safeAreaRatio === preset.label
                     ? 'bg-blue-600 text-white'
-                    : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-zinc-700 hover:text-[var(--text-primary)]'
+                    : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 {preset.label}
@@ -116,10 +116,10 @@ export function SettingsPanel() {
           <label className="block text-[11px] text-[var(--text-secondary)] font-medium mb-2">Scaling Behavior</label>
           <button
             onClick={() => setAspectRatioLocked(!aspectRatioLocked)}
-            className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+            className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium btn-press transition-colors ${
               aspectRatioLocked
                 ? 'bg-blue-600/20 border border-blue-500 text-blue-300'
-                : 'bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-zinc-700'
+                : 'bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[var(--hover-bg)]'
             }`}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -141,10 +141,10 @@ export function SettingsPanel() {
               <button
                 key={fps}
                 onClick={() => updateSettings({ frameRate: fps })}
-                className={`flex-1 px-2 py-1.5 rounded text-[10px] font-medium transition-colors ${
+                className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-medium btn-press transition-colors ${
                   settings.frameRate === fps
                     ? 'bg-blue-600 text-white'
-                    : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-zinc-700 hover:text-[var(--text-primary)]'
+                    : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 {fps}fps

@@ -87,8 +87,8 @@ export function ClipContextMenu({ clipId, x, y, onClose }: ClipContextMenuProps)
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg shadow-xl py-1 min-w-[180px]"
-      style={{ left: x, top: y }}
+      className="fixed z-50 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl backdrop-blur-md py-1 min-w-[180px]"
+      style={{ left: x, top: y, boxShadow: 'var(--modal-shadow)' }}
     >
       {menuItems.map((item, i) =>
         item.label === 'divider' ? (
@@ -97,15 +97,15 @@ export function ClipContextMenu({ clipId, x, y, onClose }: ClipContextMenuProps)
           <button
             key={item.label}
             onClick={item.action}
-            className={`w-full px-3 py-1.5 text-sm text-left flex items-center justify-between transition-colors ${
+            className={`w-full px-3 py-2 text-sm text-left flex items-center justify-between transition-colors rounded-lg mx-1 btn-press ${
               (item as { danger?: boolean }).danger
                 ? 'text-red-400 hover:bg-red-500/10'
-                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]'
+                : 'text-[var(--text-secondary)] hover:bg-[var(--hover-bg)]'
             }`}
           >
             <span>{item.label}</span>
             {item.shortcut && (
-              <span className="text-[10px] text-zinc-600 ml-4">{item.shortcut}</span>
+              <span className="text-[10px] text-[var(--text-muted)] ml-4">{item.shortcut}</span>
             )}
           </button>
         )

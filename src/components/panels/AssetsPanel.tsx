@@ -132,7 +132,7 @@ export function AssetsPanel() {
         <h2 className="text-sm font-semibold text-[var(--text-secondary)]">Assets</h2>
         <button
           onClick={handleFileImport}
-          className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-500 rounded transition-colors"
+          className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-500 rounded-lg btn-press transition-colors"
         >
           + Import
         </button>
@@ -159,7 +159,7 @@ export function AssetsPanel() {
                   e.dataTransfer.setData('application/x-asset-duration', String(asset.duration));
                   e.dataTransfer.effectAllowed = 'copy';
                 }}
-                className="p-2 rounded bg-[var(--bg-tertiary)] cursor-grab active:cursor-grabbing border border-[var(--border-color)] hover:border-zinc-600 transition-colors relative group"
+                className="p-2 rounded-xl bg-[var(--bg-tertiary)] cursor-grab active:cursor-grabbing border border-[var(--border-color)] hover:border-[var(--accent)]/30 hover-glow btn-press transition-colors relative group"
               >
                 {/* Delete button */}
                 <button
@@ -174,7 +174,7 @@ export function AssetsPanel() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
-                <div className="w-full aspect-video bg-[var(--bg-secondary)] rounded mb-1.5 flex items-center justify-center overflow-hidden relative">
+                <div className="w-full aspect-video bg-[var(--bg-secondary)] rounded-lg mb-1.5 flex items-center justify-center overflow-hidden relative">
                   {thumbnails[asset.id] ? (
                     <img
                       src={thumbnails[asset.id]}

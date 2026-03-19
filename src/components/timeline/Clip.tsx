@@ -244,8 +244,8 @@ export function Clip({ clip, trackColor, pixelsPerSecond }: ClipProps) {
   return (
     <>
       <div
-        className={`absolute top-1 bottom-1 rounded cursor-grab active:cursor-grabbing select-none overflow-hidden transition-shadow ${
-          isSelected ? 'ring-2 ring-white/60 shadow-lg' : 'hover:brightness-110'
+        className={`absolute top-1 bottom-1 rounded-lg cursor-grab active:cursor-grabbing select-none overflow-hidden transition-shadow ${
+          isSelected ? 'ring-2 ring-[var(--accent)]/70 shadow-lg' : 'hover:brightness-110'
         }`}
         style={{
           left,
@@ -322,7 +322,7 @@ export function Clip({ clip, trackColor, pixelsPerSecond }: ClipProps) {
         {/* Left trim handle */}
         <div
           data-trim-handle="left"
-          className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-white/10 hover:bg-white/30 transition-colors z-20"
+          className="absolute left-0 top-0 bottom-0 w-2.5 cursor-ew-resize bg-white/10 hover:bg-white/30 transition-colors z-20"
           onMouseDown={handleTrimLeft}
         >
           <div className="absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded bg-white/50" />
@@ -331,7 +331,7 @@ export function Clip({ clip, trackColor, pixelsPerSecond }: ClipProps) {
         {/* Right trim handle */}
         <div
           data-trim-handle="right"
-          className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-white/10 hover:bg-white/30 transition-colors z-20"
+          className="absolute right-0 top-0 bottom-0 w-2.5 cursor-ew-resize bg-white/10 hover:bg-white/30 transition-colors z-20"
           onMouseDown={handleTrimRight}
         >
           <div className="absolute right-0.5 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded bg-white/50" />

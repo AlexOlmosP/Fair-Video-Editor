@@ -32,7 +32,7 @@ export function PanelResizer({ direction, onResize }: PanelResizerProps) {
     <div
       className={`
         ${isHorizontal ? 'w-1 cursor-col-resize' : 'h-1 cursor-row-resize'}
-        bg-zinc-800 hover:bg-blue-500 transition-colors flex-shrink-0
+        bg-transparent hover:bg-[var(--accent)]/50 transition-all duration-200 flex-shrink-0
       `}
       onMouseDown={handleMouseDown}
     />

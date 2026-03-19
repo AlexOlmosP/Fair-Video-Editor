@@ -7,6 +7,13 @@ import { secondsToDisplay } from '@/lib/time';
 import { KeyframeToggle, KeyframeStrip } from './KeyframeEditor';
 import { ANIMATION_PRESETS } from '@/engine/animation/presets';
 
+const FONT_OPTIONS = [
+  'system-ui', 'Arial', 'Helvetica', 'Georgia', 'Times New Roman',
+  'Courier New', 'Verdana', 'Trebuchet MS', 'Impact', 'Comic Sans MS',
+  'Palatino', 'Garamond', 'Bookman', 'Tahoma', 'Lucida Console',
+  'Segoe UI', 'Roboto', 'Open Sans', 'Montserrat', 'Poppins',
+];
+
 const PIP_PRESETS = [
   { label: 'TL', x: -0.3, y: -0.3, scale: 0.3 },
   { label: 'TR', x: 0.3, y: -0.3, scale: 0.3 },
@@ -72,7 +79,7 @@ export function PropertiesPanel() {
                     endTime: clipSourceDuration,
                   });
                 }}
-                className="px-2 py-1 rounded text-xs font-medium bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-zinc-700 hover:text-[var(--text-primary)] transition-colors"
+                className="px-2 py-1 rounded-lg text-xs font-medium bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] btn-press transition-colors"
               >
                 {preset.label}
               </button>
@@ -100,7 +107,7 @@ export function PropertiesPanel() {
                     removeAnimation(clip.id, anim.id);
                   }
                 }}
-                className="px-2 py-1 rounded text-xs font-medium bg-red-900/40 text-red-400 hover:bg-red-900/60 transition-colors"
+                className="px-2 py-1 rounded-lg text-xs font-medium bg-red-900/40 text-red-400 hover:bg-red-900/60 btn-press transition-colors"
               >
                 Clear All
               </button>
@@ -122,7 +129,7 @@ export function PropertiesPanel() {
                       scale: { x: preset.scale, y: preset.scale },
                     });
                   }}
-                  className="px-2 py-1 rounded text-xs font-medium bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-zinc-700 hover:text-[var(--text-primary)] transition-colors"
+                  className="px-2 py-1 rounded-lg text-xs font-medium bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] btn-press transition-colors"
                 >
                   {preset.label}
                 </button>
@@ -130,6 +137,88 @@ export function PropertiesPanel() {
             })}
           </div>
         </PropertySection>
+
+        {/* Text Properties (only for text clips) */}
+        {clip.textData && (
+          <PropertySection title="Text">
+            <div className="space-y-2">
+              <textarea
+                value={clip.textData.text}
+                onChange={(e) =>
+                  updateClip(clip.id, { textData: { ...clip.textData!, text: e.target.value } })
+                }
+                className="w-full px-2 py-1.5 text-xs bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl text-[var(--text-primary)] outline-none focus:border-[var(--accent)] resize-none"
+                rows={2}
+                placeholder="Enter text..."
+              />
+              <div>
+                <label className="block text-[10px] text-[var(--text-muted)] mb-1">Font</label>
+                <select
+                  value={clip.textData.fontFamily}
+                  onChange={(e) =>
+                    updateClip(clip.id, { textData: { ...clip.textData!, fontFamily: e.target.value } })
+                  }
+                  className="w-full px-2 py-1.5 text-xs bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+                >
+                  {FONT_OPTIONS.map((f) => (
+                    <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="block text-[10px] text-[var(--text-muted)] mb-1">Size</label>
+                  <input
+                    type="number"
+                    value={clip.textData.fontSize}
+                    onChange={(e) =>
+                      updateClip(clip.id, { textData: { ...clip.textData!, fontSize: Math.max(8, parseInt(e.target.value) || 24) } })
+                    }
+                    className="w-full px-2 py-1.5 text-xs bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+                    min={8}
+                    max={300}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-[10px] text-[var(--text-muted)] mb-1">Color</label>
+                  <input
+                    type="color"
+                    value={clip.textData.color}
+                    onChange={(e) =>
+                      updateClip(clip.id, { textData: { ...clip.textData!, color: e.target.value } })
+                    }
+                    className="w-full h-8 rounded-lg border border-[var(--border-color)] cursor-pointer bg-transparent"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] text-[var(--text-muted)] mb-1">Background</label>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="color"
+                    value={clip.textData.backgroundColor?.replace(/rgba?\([^)]+\)/, '#000000') || '#000000'}
+                    onChange={(e) =>
+                      updateClip(clip.id, { textData: { ...clip.textData!, backgroundColor: e.target.value } })
+                    }
+                    className="w-8 h-8 rounded-lg border border-[var(--border-color)] cursor-pointer bg-transparent"
+                  />
+                  <button
+                    onClick={() =>
+                      updateClip(clip.id, { textData: { ...clip.textData!, backgroundColor: clip.textData!.backgroundColor ? undefined : 'rgba(0,0,0,0.6)' } })
+                    }
+                    className={`px-2 py-1 rounded-lg text-[10px] font-medium btn-press transition-colors ${
+                      clip.textData.backgroundColor
+                        ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
+                        : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)]'
+                    }`}
+                  >
+                    {clip.textData.backgroundColor ? 'On' : 'Off'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </PropertySection>
+        )}
 
         {/* Transform */}
         <PropertySection title="Transform">
@@ -292,7 +381,7 @@ function PropertySlider({
         step={step}
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="w-full h-1 bg-zinc-700 rounded appearance-none cursor-pointer accent-blue-500"
+        className="w-full h-1 bg-[var(--hover-bg)] rounded appearance-none cursor-pointer accent-blue-500"
       />
     </div>
   );
@@ -326,14 +415,14 @@ function SpeedControl({ value, onChange }: { value: number; onChange: (v: number
           const rounded = raw < 1 ? Math.round(raw * 20) / 20 : raw < 10 ? Math.round(raw * 4) / 4 : Math.round(raw);
           onChange(Math.max(0.1, Math.min(100, rounded)));
         }}
-        className="w-full h-1 bg-zinc-700 rounded appearance-none cursor-pointer accent-blue-500"
+        className="w-full h-1 bg-[var(--hover-bg)] rounded appearance-none cursor-pointer accent-blue-500"
       />
       <div className="flex gap-1 flex-wrap">
         {SPEED_QUICK_BUTTONS.map((s) => (
           <button
             key={s}
             onClick={() => onChange(s)}
-            className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
+            className={`px-1.5 py-0.5 rounded-lg text-[10px] font-medium btn-press transition-colors ${
               Math.abs(value - s) < 0.01
                 ? 'bg-blue-600 text-white'
                 : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
@@ -385,7 +474,7 @@ function KeyframedSlider({
         step={step}
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="w-full h-1 bg-zinc-700 rounded appearance-none cursor-pointer accent-blue-500"
+        className="w-full h-1 bg-[var(--hover-bg)] rounded appearance-none cursor-pointer accent-blue-500"
       />
       <KeyframeStrip clipId={clipId} property={property} />
     </div>
