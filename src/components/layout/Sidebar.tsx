@@ -78,21 +78,30 @@ const TABS: { key: SidebarTab; label: string; icon: React.ReactNode }[] = [
 
 export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   return (
-    <div className="w-16 flex-shrink-0 bg-[var(--bg-secondary)] border-r border-[var(--border-color)] flex flex-col items-center pt-3 gap-0.5">
-      {TABS.map((tab) => (
-        <button
-          key={tab.key}
-          onClick={() => onTabChange(tab.key)}
-          className={`w-14 h-12 flex flex-col items-center justify-center gap-0.5 rounded-xl btn-icon-press ${
-            activeTab === tab.key
-              ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
-              : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--hover-bg)]'
-          }`}
-        >
-          {tab.icon}
-          <span className="text-[9px] font-medium leading-none">{tab.label}</span>
-        </button>
-      ))}
+    <div className="w-16 flex-shrink-0 glass-panel border-r border-[var(--glass-border)] flex flex-col items-center pt-4 gap-1">
+      {TABS.map((tab) => {
+        const isActive = activeTab === tab.key;
+        return (
+          <button
+            key={tab.key}
+            onClick={() => onTabChange(tab.key)}
+            className={`w-[52px] h-12 flex flex-col items-center justify-center gap-1 rounded-2xl btn-icon-press relative ${
+              isActive
+                ? 'text-[var(--accent)]'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--hover-bg)]'
+            }`}
+            style={isActive ? {
+              background: 'var(--hover-bg)',
+              boxShadow: 'var(--inner-highlight), var(--glow-accent)',
+            } : undefined}
+          >
+            {tab.icon}
+            <span className={`text-[8px] font-medium leading-none tracking-wide ${isActive ? 'opacity-100' : 'opacity-70'}`}>
+              {tab.label}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }

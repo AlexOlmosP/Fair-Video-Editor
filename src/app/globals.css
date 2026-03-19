@@ -1,53 +1,61 @@
 @import "tailwindcss";
 
 :root {
-  /* Light mode — clean slate whites with subtle blue undertone */
+  /* Light mode — Soft Structuralism: silver-grey, airy, diffused */
   --background: #f8fafc;
   --foreground: #0f172a;
   --bg-primary: #f8fafc;
   --bg-secondary: #f1f5f9;
   --bg-tertiary: #e2e8f0;
-  --border-color: #cbd5e1;
+  --border-color: rgba(15, 23, 42, 0.08);
   --text-primary: #0f172a;
   --text-secondary: #334155;
   --text-muted: #64748b;
   --accent: #3b82f6;
   --accent-export: #10b981;
   --surface: #ffffff;
-  --hover-bg: #e2e8f0;
-  --active-bg: #cbd5e1;
+  --hover-bg: rgba(15, 23, 42, 0.04);
+  --active-bg: rgba(15, 23, 42, 0.08);
+  --glass-bg: rgba(241, 245, 249, 0.85);
+  --glass-border: rgba(15, 23, 42, 0.06);
+  --inner-highlight: inset 0 1px 1px rgba(255, 255, 255, 0.8);
   --scrollbar-track: #f1f5f9;
   --scrollbar-thumb: #cbd5e1;
   --scrollbar-hover: #94a3b8;
   --range-track: #cbd5e1;
-  --panel-shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
-  --elevated-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
-  --modal-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.08);
+  --panel-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.03);
+  --elevated-shadow: 0 8px 24px -4px rgba(15, 23, 42, 0.08), 0 4px 8px -4px rgba(15, 23, 42, 0.04);
+  --modal-shadow: 0 24px 48px -12px rgba(15, 23, 42, 0.15), 0 12px 24px -8px rgba(15, 23, 42, 0.08);
+  --glow-accent: 0 0 20px rgba(59, 130, 246, 0.08);
 }
 
 .dark {
-  /* Dark mode — navy-tinted, premium depth */
-  --background: #0f1419;
+  /* Dark mode — Ethereal Glass: deep OLED black, glass depth */
+  --background: #08090d;
   --foreground: #e2e8f0;
-  --bg-primary: #0f1419;
-  --bg-secondary: #1a1f2e;
-  --bg-tertiary: #252d3d;
-  --border-color: #2a3344;
+  --bg-primary: #08090d;
+  --bg-secondary: #111318;
+  --bg-tertiary: #1a1d26;
+  --border-color: rgba(255, 255, 255, 0.06);
   --text-primary: #e2e8f0;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
   --accent: #3b82f6;
   --accent-export: #10b981;
-  --surface: #1a1f2e;
-  --hover-bg: #2a3344;
-  --active-bg: #334155;
-  --scrollbar-track: #1a1f2e;
-  --scrollbar-thumb: #334155;
-  --scrollbar-hover: #475569;
-  --range-track: #334155;
-  --panel-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
-  --elevated-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
-  --modal-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+  --surface: #111318;
+  --hover-bg: rgba(255, 255, 255, 0.04);
+  --active-bg: rgba(255, 255, 255, 0.08);
+  --glass-bg: rgba(17, 19, 24, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --inner-highlight: inset 0 1px 1px rgba(255, 255, 255, 0.04);
+  --scrollbar-track: #111318;
+  --scrollbar-thumb: #2a2d36;
+  --scrollbar-hover: #3a3d46;
+  --range-track: #2a2d36;
+  --panel-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --elevated-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.5), 0 4px 8px -4px rgba(0, 0, 0, 0.4);
+  --modal-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.7), 0 12px 24px -8px rgba(0, 0, 0, 0.5);
+  --glow-accent: 0 0 20px rgba(59, 130, 246, 0.12);
 }
 
 @theme inline {
@@ -60,94 +68,110 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans, 'Inter', system-ui, -apple-system, sans-serif);
+  font-family: var(--font-geist-sans, system-ui, -apple-system, sans-serif);
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--scrollbar-track);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-hover);
-}
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
 
 /* Range input styling */
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
-  height: 4px;
-  border-radius: 2px;
+  height: 3px;
+  border-radius: 99px;
   background: var(--range-track);
 }
 
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  background: #3b82f6;
+  background: var(--accent);
   cursor: pointer;
-  transition: transform 100ms ease, box-shadow 100ms ease;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 200ms cubic-bezier(0.32, 0.72, 0, 1),
+              box-shadow 200ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 input[type="range"]::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+  transform: scale(1.25);
+  box-shadow: 0 0 0 5px rgba(59, 130, 246, 0.15), 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
 input[type="range"]::-webkit-slider-thumb:active {
-  transform: scale(0.95);
-}
-
-/* === Premium Micro-Interactions === */
-
-/* Rewarding click feel for all interactive buttons */
-.btn-press {
-  transition: transform 120ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
-              background-color 150ms ease,
-              box-shadow 150ms ease,
-              border-color 150ms ease;
-}
-.btn-press:active {
-  transform: scale(0.96);
-}
-
-/* Sidebar / icon button press */
-.btn-icon-press {
-  transition: transform 100ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
-              background-color 150ms ease,
-              color 150ms ease;
-}
-.btn-icon-press:active {
   transform: scale(0.92);
 }
 
-/* Panel content fade-in */
-@keyframes panelFadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+/* === Premium Micro-Interactions — Spring Physics === */
+
+/* Haptic press: simulates physical mass with spring easing */
+.btn-press {
+  transition: transform 500ms cubic-bezier(0.32, 0.72, 0, 1),
+              background-color 300ms cubic-bezier(0.32, 0.72, 0, 1),
+              box-shadow 300ms cubic-bezier(0.32, 0.72, 0, 1),
+              border-color 300ms cubic-bezier(0.32, 0.72, 0, 1);
 }
-.panel-enter {
-  animation: panelFadeIn 200ms ease-out;
+.btn-press:active {
+  transform: scale(0.97);
 }
 
-/* Smooth hover glow for cards */
+/* Icon button press: faster, tighter spring */
+.btn-icon-press {
+  transition: transform 400ms cubic-bezier(0.32, 0.72, 0, 1),
+              background-color 300ms cubic-bezier(0.32, 0.72, 0, 1),
+              color 300ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.btn-icon-press:active {
+  transform: scale(0.90);
+}
+
+/* Panel content entrance — slide up with blur resolve */
+@keyframes panelFadeIn {
+  from { opacity: 0; transform: translateY(6px); filter: blur(4px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+.panel-enter {
+  animation: panelFadeIn 400ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Card hover — ambient glow with lift */
 .hover-glow {
-  transition: box-shadow 200ms ease, border-color 200ms ease, transform 150ms ease;
+  transition: box-shadow 500ms cubic-bezier(0.32, 0.72, 0, 1),
+              border-color 500ms cubic-bezier(0.32, 0.72, 0, 1),
+              transform 500ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 .hover-glow:hover {
-  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.15), var(--elevated-shadow);
+  box-shadow: var(--glow-accent), var(--elevated-shadow);
+  transform: translateY(-1px);
+}
+
+/* Glass panel effect */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--inner-highlight), var(--panel-shadow);
+}
+
+/* Double-bezel container — premium nested architecture */
+.bezel-outer {
+  background: var(--hover-bg);
+  border: 1px solid var(--glass-border);
+  padding: 3px;
+  border-radius: 1rem;
+}
+.bezel-inner {
+  background: var(--bg-secondary);
+  border-radius: calc(1rem - 3px);
+  box-shadow: var(--inner-highlight);
 }

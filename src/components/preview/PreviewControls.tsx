@@ -9,36 +9,36 @@ export function PreviewControls() {
     usePlayback();
 
   return (
-    <div className="flex items-center gap-4 flex-shrink-0 bg-[var(--bg-secondary)] rounded-2xl px-5 py-2.5 border border-[var(--border-color)]" style={{ boxShadow: 'var(--panel-shadow)' }}>
+    <div className="flex items-center gap-3 flex-shrink-0 glass-panel rounded-full px-4 py-2">
       {/* Time Display */}
-      <span className="text-xs text-[var(--text-secondary)] font-mono w-20 text-right bg-[var(--bg-tertiary)] px-2 py-1 rounded-lg">
+      <span className="text-[11px] text-[var(--text-muted)] font-mono w-[72px] text-right tabular-nums tracking-tight">
         {secondsToDisplay(playheadTime)}
       </span>
 
       {/* Transport Controls */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-0.5">
         <button
           onClick={() => skipBackward(5)}
-          className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-colors btn-icon-press"
+          className="p-2 rounded-xl hover:bg-[var(--hover-bg)] text-[var(--text-muted)] hover:text-[var(--text-primary)] btn-icon-press"
           title="Skip backward 5s"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z" />
           </svg>
         </button>
 
         <button
           onClick={togglePlayback}
-          className="rounded-full bg-[var(--accent)] hover:bg-blue-400 text-white btn-press p-3 transition-colors"
-          style={{ boxShadow: '0 2px 8px rgba(59, 130, 246, 0.25)' }}
+          className="rounded-full bg-[var(--accent)] hover:bg-blue-400 text-white btn-press p-3 group"
+          style={{ boxShadow: '0 2px 12px rgba(59, 130, 246, 0.3), inset 0 1px 1px rgba(255,255,255,0.15)' }}
           title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
         >
           {isPlaying ? (
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
               <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
             </svg>
           ) : (
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M8 5v14l11-7z" />
             </svg>
           )}
@@ -46,17 +46,17 @@ export function PreviewControls() {
 
         <button
           onClick={() => skipForward(5)}
-          className="p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-colors btn-icon-press"
+          className="p-2 rounded-xl hover:bg-[var(--hover-bg)] text-[var(--text-muted)] hover:text-[var(--text-primary)] btn-icon-press"
           title="Skip forward 5s"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M11.933 12.8a1 1 0 000-1.6L6.6 7.2A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4zM19.933 12.8a1 1 0 000-1.6l-5.333-4A1 1 0 0013 8v8a1 1 0 001.6.8l5.333-4z" />
           </svg>
         </button>
       </div>
 
       {/* Duration */}
-      <span className="text-xs text-[var(--text-secondary)] font-mono w-20 bg-[var(--bg-tertiary)] px-2 py-1 rounded-lg">
+      <span className="text-[11px] text-[var(--text-muted)] font-mono w-[72px] tabular-nums tracking-tight">
         {secondsToDisplay(duration)}
       </span>
     </div>

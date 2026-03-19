@@ -67,11 +67,11 @@ export function EditorLayout() {
       <div className="flex flex-1 min-h-0">
         {/* Left Panel — Sidebar + Content */}
         <div
-          className="flex-shrink-0 bg-[var(--bg-secondary)] flex"
-          style={{ width: leftPanelWidth, boxShadow: 'var(--panel-shadow)' }}
+          className="flex-shrink-0 glass-panel flex"
+          style={{ width: leftPanelWidth }}
         >
           <Sidebar activeTab={leftTab} onTabChange={setLeftTab} />
-          <div className="flex-1 overflow-y-auto border-r border-[var(--border-color)] panel-enter" key={leftTab}>
+          <div className="flex-1 overflow-y-auto border-r border-[var(--glass-border)] panel-enter" key={leftTab}>
             {leftTab === 'media' && <AssetsPanel />}
             {leftTab === 'text' && <TextPanel />}
             {leftTab === 'emojis' && <EmojiPanel />}
@@ -133,8 +133,8 @@ export function EditorLayout() {
               }}
             />
             <div
-              className="flex-shrink-0 border-l border-[var(--border-color)] bg-[var(--bg-secondary)] overflow-y-auto"
-              style={{ width: rightPanelWidth, boxShadow: 'var(--panel-shadow)' }}
+              className="flex-shrink-0 border-l border-[var(--glass-border)] glass-panel overflow-y-auto"
+              style={{ width: rightPanelWidth }}
             >
               <PropertiesPanel />
             </div>
@@ -163,7 +163,7 @@ export function EditorLayout() {
 
       {/* Timeline Area */}
       <div
-        className="flex-shrink-0 border-t border-[var(--border-color)] bg-[var(--bg-secondary)]"
+        className="flex-shrink-0 border-t border-[var(--glass-border)] glass-panel"
         style={{ height: timelineHeight }}
       >
         <Timeline />
