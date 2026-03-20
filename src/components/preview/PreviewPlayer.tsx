@@ -250,49 +250,60 @@ export function PreviewPlayer() {
     );
     for (const textClip of activeTextClips) {
       const td = textClip.textData!;
-      const animOpacity = interpolateProperty(textClip, 'opacity', playheadTime, textClip.opacity);
-      const animScaleX = interpolateProperty(textClip, 'scaleX', playheadTime, textClip.scale.x);
-      const animScaleY = interpolateProperty(textClip, 'scaleY', playheadTime, textClip.scale.y);
-      const animRotation = interpolateProperty(textClip, 'rotation', playheadTime, textClip.rotation);
-      const animPosX = interpolateProperty(textClip, 'positionX', playheadTime, textClip.position.x);
-      const animPosY = interpolateProperty(textClip, 'positionY', playheadTime, textClip.position.y);
+      if (!td.text) continue;
 
-      ctx.save();
-      ctx.globalAlpha = animOpacity;
+      try {
+        const animOpacity = interpolateProperty(textClip, 'opacity', playheadTime, textClip.opacity);
+        const animScaleX = interpolateProperty(textClip, 'scaleX', playheadTime, textClip.scale.x);
+        const animScaleY = interpolateProperty(textClip, 'scaleY', playheadTime, textClip.scale.y);
+        const animRotation = interpolateProperty(textClip, 'rotation', playheadTime, textClip.rotation);
+        const animPosX = interpolateProperty(textClip, 'positionX', playheadTime, textClip.position.x);
+        const animPosY = interpolateProperty(textClip, 'positionY', playheadTime, textClip.position.y);
 
-      // Transform: same as media clips
-      const tcx = (projectW / 2 + animPosX) * sx;
-      const tcy = (projectH / 2 + animPosY) * sy;
-      ctx.translate(tcx, tcy);
-      ctx.rotate((animRotation * Math.PI) / 180);
-      ctx.scale(animScaleX, animScaleY);
+        ctx.save();
+        ctx.globalAlpha = Number.isFinite(animOpacity) ? animOpacity : 1;
 
-      // Measure text at base size
-      ctx.font = `bold ${Math.round(td.fontSize * sy)}px ${td.fontFamily}`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+        // Transform: same as media clips
+        const tcx = (projectW / 2 + (Number.isFinite(animPosX) ? animPosX : 0)) * sx;
+        const tcy = (projectH / 2 + (Number.isFinite(animPosY) ? animPosY : 0)) * sy;
+        ctx.translate(tcx, tcy);
+        ctx.rotate(((Number.isFinite(animRotation) ? animRotation : 0) * Math.PI) / 180);
+        ctx.scale(
+          Number.isFinite(animScaleX) ? animScaleX : 1,
+          Number.isFinite(animScaleY) ? animScaleY : 1
+        );
 
-      const metrics = ctx.measureText(td.text);
-      const textW = metrics.width + 24 * sx;
-      const textH = (td.fontSize + 16) * sy;
+        // Measure text at base size
+        const fontSize = Math.max(1, Math.round((td.fontSize || 48) * sy));
+        ctx.font = `bold ${fontSize}px ${td.fontFamily || 'system-ui'}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
 
-      if (td.backgroundColor) {
-        ctx.fillStyle = td.backgroundColor;
-        const rx = 8 * sx;
-        ctx.beginPath();
-        ctx.roundRect(-textW / 2, -textH / 2, textW, textH, rx);
-        ctx.fill();
+        const metrics = ctx.measureText(td.text);
+        const textW = metrics.width + 24 * sx;
+        const textH = (td.fontSize + 16) * sy;
+
+        if (td.backgroundColor && textW > 0 && textH > 0) {
+          ctx.fillStyle = td.backgroundColor;
+          const rx = 8 * sx;
+          ctx.beginPath();
+          ctx.roundRect(-textW / 2, -textH / 2, textW, textH, rx);
+          ctx.fill();
+        }
+
+        if (td.strokeColor && td.strokeWidth) {
+          ctx.strokeStyle = td.strokeColor;
+          ctx.lineWidth = td.strokeWidth * sx;
+          ctx.strokeText(td.text, 0, 0);
+        }
+
+        ctx.fillStyle = td.color || '#ffffff';
+        ctx.fillText(td.text, 0, 0);
+        ctx.restore();
+      } catch {
+        // Skip this text clip if rendering fails
+        ctx.restore();
       }
-
-      if (td.strokeColor && td.strokeWidth) {
-        ctx.strokeStyle = td.strokeColor;
-        ctx.lineWidth = td.strokeWidth * sx;
-        ctx.strokeText(td.text, 0, 0);
-      }
-
-      ctx.fillStyle = td.color;
-      ctx.fillText(td.text, 0, 0);
-      ctx.restore();
     }
 
     // Draw selection borders for ALL selected clips (media + text)

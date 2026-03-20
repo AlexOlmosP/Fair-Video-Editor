@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
+import { useGSAP } from '@gsap/react';
+import gsap from 'gsap';
 import { EXPORT_PRESETS } from '@/engine/ffmpeg/config';
 import { useFFmpeg } from '@/hooks/useFFmpeg';
 import { useTimelineStore } from '@/store/useTimelineStore';
@@ -306,11 +308,25 @@ export function ExportModal({ onClose }: ExportModalProps) {
     }
   }, [selectedPreset, selectedRatio, isLoaded, load, exec, writeFile, readFile, onClose]);
 
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(() => {
+    const tl = gsap.timeline();
+    tl.fromTo(overlayRef.current, { opacity: 0 }, { opacity: 1, duration: 0.3, ease: 'power2.out' });
+    tl.fromTo(modalRef.current,
+      { opacity: 0, scale: 0.95, y: 12 },
+      { opacity: 1, scale: 1, y: 0, duration: 0.5, ease: 'back.out(1.4)' },
+      '-=0.15'
+    );
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md" onClick={onClose}>
+    <div ref={overlayRef} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md" style={{ opacity: 0 }} onClick={onClose}>
       <div
-        className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl w-[420px]"
-        style={{ boxShadow: 'var(--modal-shadow)' }}
+        ref={modalRef}
+        className="glass-panel rounded-[1.25rem] w-[420px]"
+        style={{ boxShadow: 'var(--modal-shadow)', opacity: 0 }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

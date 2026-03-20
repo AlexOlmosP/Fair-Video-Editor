@@ -7,6 +7,15 @@ import { useMediaStore } from '@/store/useMediaStore';
 import { transcribeVideo, isWhisperSupported, type TranscriptionStatus, type TranscriptionSegment } from '@/engine/processors/WhisperTranscriber';
 import { generateId } from '@/lib/id';
 
+const FONT_OPTIONS = [
+  'system-ui', 'Arial', 'Helvetica', 'Georgia', 'Times New Roman',
+  'Courier New', 'Verdana', 'Trebuchet MS', 'Impact', 'Comic Sans MS',
+  'Palatino', 'Garamond', 'Tahoma', 'Lucida Console',
+  'Segoe UI', 'Roboto', 'Open Sans', 'Montserrat', 'Poppins',
+];
+
+const MAX_WORDS_PER_CAPTION = 3;
+
 interface CaptionItem {
   id: string;
   text: string;
@@ -14,12 +23,54 @@ interface CaptionItem {
   endTime: number;
 }
 
+/**
+ * Split segments into chunks of max N words each, distributing time evenly.
+ */
+function splitIntoWordChunks(segments: TranscriptionSegment[], maxWords: number): CaptionItem[] {
+  const items: CaptionItem[] = [];
+
+  for (const seg of segments) {
+    const text = seg.text?.trim();
+    if (!text) continue;
+
+    const words = text.split(/\s+/);
+    if (words.length <= maxWords) {
+      items.push({
+        id: generateId(),
+        text,
+        startTime: seg.startTime,
+        endTime: seg.endTime,
+      });
+      continue;
+    }
+
+    // Split into chunks of maxWords
+    const totalDuration = seg.endTime - seg.startTime;
+    const chunkCount = Math.ceil(words.length / maxWords);
+    const chunkDuration = totalDuration / chunkCount;
+
+    for (let i = 0; i < chunkCount; i++) {
+      const chunkWords = words.slice(i * maxWords, (i + 1) * maxWords);
+      items.push({
+        id: generateId(),
+        text: chunkWords.join(' '),
+        startTime: seg.startTime + i * chunkDuration,
+        endTime: seg.startTime + (i + 1) * chunkDuration,
+      });
+    }
+  }
+
+  return items;
+}
+
 export function CaptionEditor() {
   const [status, setStatus] = useState<TranscriptionStatus | null>(null);
   const [captions, setCaptions] = useState<CaptionItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [captionFont, setCaptionFont] = useState('system-ui');
   const abortRef = useRef(false);
+  const sourceClipRef = useRef<string | null>(null);
 
   const handleGenerate = useCallback(async () => {
     setError(null);
@@ -31,7 +82,6 @@ export function CaptionEditor() {
       return;
     }
 
-    // Find a video clip to transcribe
     const { clips, selectedClipIds } = useTimelineStore.getState();
     const { assets } = useProjectStore.getState();
     const { elements } = useMediaStore.getState();
@@ -57,6 +107,7 @@ export function CaptionEditor() {
       return;
     }
 
+    sourceClipRef.current = targetClipId;
     setIsGenerating(true);
 
     try {
@@ -66,14 +117,13 @@ export function CaptionEditor() {
       });
 
       if (!abortRef.current) {
-        // Convert segments to caption items with clip timeline offset
         const clipOffset = clip.startTime;
-        const items: CaptionItem[] = segments.map((seg: TranscriptionSegment) => ({
-          id: generateId(),
-          text: seg.text,
+        const offsetSegments = segments.map((seg: TranscriptionSegment) => ({
+          ...seg,
           startTime: seg.startTime + clipOffset,
           endTime: seg.endTime + clipOffset,
         }));
+        const items = splitIntoWordChunks(offsetSegments, MAX_WORDS_PER_CAPTION);
         setCaptions(items);
       }
     } catch (err) {
@@ -95,42 +145,73 @@ export function CaptionEditor() {
   const handleAddToTimeline = useCallback(() => {
     if (captions.length === 0) return;
 
-    const { addTrack, addClip } = useTimelineStore.getState();
-    const { settings } = useProjectStore.getState();
-    const trackId = addTrack('caption', 'Captions');
+    try {
+      const { addTrack, addClip, clips } = useTimelineStore.getState();
+      const { settings } = useProjectStore.getState();
 
-    for (const caption of captions) {
-      const duration = Math.max(0.3, caption.endTime - caption.startTime);
-      addClip({
-        assetId: '',
-        trackId,
-        startTime: caption.startTime,
-        duration,
-        inPoint: 0,
-        outPoint: duration,
-        speed: 1,
-        opacity: 1,
-        volume: 0,
-        position: { x: 0, y: settings.height * 0.35 },
-        scale: { x: 1, y: 1 },
-        rotation: 0,
-        filters: [],
-        keyframes: [],
-        blendMode: 'normal',
-        locked: false,
-        visible: true,
-        textData: {
-          text: caption.text,
-          fontFamily: 'system-ui',
-          fontSize: 48,
-          color: '#ffffff',
-          backgroundColor: 'rgba(0,0,0,0.6)',
-          strokeColor: '#000000',
-          strokeWidth: 2,
-        },
-      });
+      // Find the source clip's track to place captions right below it
+      const sourceClip = sourceClipRef.current ? clips[sourceClipRef.current] : null;
+      const sourceTrackId = sourceClip?.trackId;
+
+      // Create caption track — it will be added after existing tracks
+      const trackId = addTrack('caption', 'Captions');
+
+      // Position captions at 3/4 height (y is relative to center, so 0.25*height below center)
+      const captionY = Math.round(settings.height * 0.25);
+
+      for (const caption of captions) {
+        const start = Number.isFinite(caption.startTime) ? caption.startTime : 0;
+        const end = Number.isFinite(caption.endTime) ? caption.endTime : start + 2;
+        const duration = Math.max(0.3, end - start);
+        const text = caption.text?.trim();
+        if (!text) continue;
+
+        addClip({
+          assetId: '',
+          trackId,
+          startTime: start,
+          duration,
+          inPoint: 0,
+          outPoint: duration,
+          speed: 1,
+          opacity: 1,
+          volume: 0,
+          position: { x: 0, y: captionY },
+          scale: { x: 1, y: 1 },
+          rotation: 0,
+          filters: [],
+          keyframes: [],
+          blendMode: 'normal',
+          locked: false,
+          visible: true,
+          textData: {
+            text,
+            fontFamily: captionFont,
+            fontSize: 48,
+            color: '#ffffff',
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            strokeColor: '#000000',
+            strokeWidth: 2,
+          },
+        });
+      }
+
+      // Reorder: move caption track right after the source video track
+      if (sourceTrackId) {
+        const { trackOrder } = useTimelineStore.getState();
+        const srcIdx = trackOrder.indexOf(sourceTrackId);
+        const capIdx = trackOrder.indexOf(trackId);
+        if (srcIdx >= 0 && capIdx >= 0 && capIdx !== srcIdx + 1) {
+          const newOrder = trackOrder.filter((id) => id !== trackId);
+          newOrder.splice(srcIdx + 1, 0, trackId);
+          useTimelineStore.setState({ trackOrder: newOrder });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to add captions to timeline:', err);
+      setError(err instanceof Error ? err.message : 'Failed to add captions to timeline');
     }
-  }, [captions]);
+  }, [captions, captionFont]);
 
   const updateCaption = (id: string, updates: Partial<CaptionItem>) => {
     setCaptions((prev) =>
@@ -142,7 +223,6 @@ export function CaptionEditor() {
     setCaptions((prev) => prev.filter((c) => c.id !== id));
   };
 
-  // Progress display helpers
   const getProgressLabel = () => {
     if (!status) return '';
     switch (status.phase) {
@@ -162,9 +242,9 @@ export function CaptionEditor() {
   const getProgressPercent = () => {
     if (!status) return 0;
     switch (status.phase) {
-      case 'loading-model': return status.progress * 0.3; // 0-30%
+      case 'loading-model': return status.progress * 0.3;
       case 'extracting-audio': return 35;
-      case 'transcribing': return 40 + status.progress * 0.6; // 40-100%
+      case 'transcribing': return 40 + status.progress * 0.6;
       default: return 0;
     }
   };
@@ -177,7 +257,7 @@ export function CaptionEditor() {
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
         {/* Info notice */}
         <div className="text-[10px] text-[var(--text-muted)] bg-[var(--bg-tertiary)] rounded-xl p-2.5 leading-relaxed">
-          <p>Generates captions from video audio using AI speech recognition. Processes the actual audio track — no microphone needed.</p>
+          <p>Generates captions from video audio using AI. Max {MAX_WORDS_PER_CAPTION} words per line.</p>
           <p className="mt-1 text-[9px] opacity-70">First use downloads a ~40MB AI model (cached for future use).</p>
         </div>
 
@@ -222,6 +302,27 @@ export function CaptionEditor() {
 
         {captions.length > 0 && (
           <>
+            {/* Font selector */}
+            <div>
+              <label className="block text-[10px] text-[var(--text-muted)] mb-1 font-medium">Caption Font</label>
+              <select
+                value={captionFont}
+                onChange={(e) => setCaptionFont(e.target.value)}
+                className="w-full px-2 py-1.5 text-xs bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-xl text-[var(--text-primary)] outline-none focus:border-[var(--accent)]"
+              >
+                {FONT_OPTIONS.map((f) => (
+                  <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>
+                ))}
+              </select>
+              {/* Font preview */}
+              <div
+                className="mt-1.5 px-3 py-1.5 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-center text-[var(--text-primary)] text-sm"
+                style={{ fontFamily: captionFont }}
+              >
+                Caption preview
+              </div>
+            </div>
+
             <button
               onClick={handleAddToTimeline}
               className="w-full px-3 py-1.5 text-sm rounded-xl bg-green-700 hover:bg-green-600 btn-press transition-colors font-medium"
@@ -250,6 +351,7 @@ export function CaptionEditor() {
                     value={caption.text}
                     onChange={(e) => updateCaption(caption.id, { text: e.target.value })}
                     className="w-full bg-[var(--bg-secondary)] text-[var(--text-primary)] text-sm px-2 py-1 rounded-lg border border-[var(--border-color)] focus:border-blue-500 outline-none"
+                    style={{ fontFamily: captionFont }}
                   />
                 </div>
               ))}

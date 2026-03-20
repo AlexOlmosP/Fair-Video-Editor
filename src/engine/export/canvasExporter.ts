@@ -156,47 +156,59 @@ function renderFrameToCanvas(
   );
   for (const textClip of activeTextClips) {
     const td = textClip.textData!;
-    const animOpacity = interpolateProperty(textClip, 'opacity', time, textClip.opacity);
-    const animScaleX = interpolateProperty(textClip, 'scaleX', time, textClip.scale.x);
-    const animScaleY = interpolateProperty(textClip, 'scaleY', time, textClip.scale.y);
-    const animRotation = interpolateProperty(textClip, 'rotation', time, textClip.rotation);
-    const animPosX = interpolateProperty(textClip, 'positionX', time, textClip.position.x);
-    const animPosY = interpolateProperty(textClip, 'positionY', time, textClip.position.y);
+    if (!td.text) continue;
 
-    ctx.save();
-    ctx.globalAlpha = animOpacity;
+    try {
+      const animOpacity = interpolateProperty(textClip, 'opacity', time, textClip.opacity);
+      const animScaleX = interpolateProperty(textClip, 'scaleX', time, textClip.scale.x);
+      const animScaleY = interpolateProperty(textClip, 'scaleY', time, textClip.scale.y);
+      const animRotation = interpolateProperty(textClip, 'rotation', time, textClip.rotation);
+      const animPosX = interpolateProperty(textClip, 'positionX', time, textClip.position.x);
+      const animPosY = interpolateProperty(textClip, 'positionY', time, textClip.position.y);
 
-    const tcx = width / 2 + animPosX * uScale;
-    const tcy = height / 2 + animPosY * uScale;
-    ctx.translate(tcx, tcy);
-    ctx.rotate((animRotation * Math.PI) / 180);
-    ctx.scale(animScaleX, animScaleY);
+      ctx.save();
+      ctx.globalAlpha = Number.isFinite(animOpacity) ? animOpacity : 1;
 
-    ctx.font = `bold ${Math.round(td.fontSize * uScale)}px ${td.fontFamily}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+      const posX = Number.isFinite(animPosX) ? animPosX : 0;
+      const posY = Number.isFinite(animPosY) ? animPosY : 0;
+      const tcx = width / 2 + posX * uScale;
+      const tcy = height / 2 + posY * uScale;
+      ctx.translate(tcx, tcy);
+      ctx.rotate(((Number.isFinite(animRotation) ? animRotation : 0) * Math.PI) / 180);
+      ctx.scale(
+        Number.isFinite(animScaleX) ? animScaleX : 1,
+        Number.isFinite(animScaleY) ? animScaleY : 1
+      );
 
-    const metrics = ctx.measureText(td.text);
-    const textW = metrics.width + 24 * uScale;
-    const textH = (td.fontSize + 16) * uScale;
+      const fontSize = Math.max(1, Math.round((td.fontSize || 48) * uScale));
+      ctx.font = `bold ${fontSize}px ${td.fontFamily || 'system-ui'}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
 
-    if (td.backgroundColor) {
-      ctx.fillStyle = td.backgroundColor;
-      const rx = 8 * uScale;
-      ctx.beginPath();
-      ctx.roundRect(-textW / 2, -textH / 2, textW, textH, rx);
-      ctx.fill();
+      const metrics = ctx.measureText(td.text);
+      const textW = metrics.width + 24 * uScale;
+      const textH = ((td.fontSize || 48) + 16) * uScale;
+
+      if (td.backgroundColor && textW > 0 && textH > 0) {
+        ctx.fillStyle = td.backgroundColor;
+        const rx = 8 * uScale;
+        ctx.beginPath();
+        ctx.roundRect(-textW / 2, -textH / 2, textW, textH, rx);
+        ctx.fill();
+      }
+
+      if (td.strokeColor && td.strokeWidth) {
+        ctx.strokeStyle = td.strokeColor;
+        ctx.lineWidth = td.strokeWidth * uScale;
+        ctx.strokeText(td.text, 0, 0);
+      }
+
+      ctx.fillStyle = td.color || '#ffffff';
+      ctx.fillText(td.text, 0, 0);
+      ctx.restore();
+    } catch {
+      ctx.restore();
     }
-
-    if (td.strokeColor && td.strokeWidth) {
-      ctx.strokeStyle = td.strokeColor;
-      ctx.lineWidth = td.strokeWidth * uScale;
-      ctx.strokeText(td.text, 0, 0);
-    }
-
-    ctx.fillStyle = td.color;
-    ctx.fillText(td.text, 0, 0);
-    ctx.restore();
   }
 }
 
@@ -493,9 +505,16 @@ export async function renderExportWithWebCodecs(opts: ExportOptions): Promise<Bl
  */
 export function getTimelineDuration(clips: Record<string, Clip>): number {
   let maxEnd = 0;
+  let mediaMaxEnd = 0;
   for (const clip of Object.values(clips)) {
     const end = clip.startTime + clip.duration;
     if (end > maxEnd) maxEnd = end;
+    // Track media clips separately (non-text clips with actual assets)
+    if (clip.assetId && !clip.textData) {
+      if (end > mediaMaxEnd) mediaMaxEnd = end;
+    }
   }
-  return maxEnd;
+  // If we have media clips, use their duration (don't let captions extend the export)
+  // Otherwise fall back to the overall max
+  return mediaMaxEnd > 0 ? mediaMaxEnd : maxEnd;
 }

@@ -154,11 +154,11 @@ input[type="range"]::-webkit-slider-thumb:active {
   transform: translateY(-1px);
 }
 
-/* Glass panel effect */
+/* Liquid Glass refraction — true frosted glass with inner edge refraction */
 .glass-panel {
   background: var(--glass-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
   border: 1px solid var(--glass-border);
   box-shadow: var(--inner-highlight), var(--panel-shadow);
 }
@@ -168,10 +168,27 @@ input[type="range"]::-webkit-slider-thumb:active {
   background: var(--hover-bg);
   border: 1px solid var(--glass-border);
   padding: 3px;
-  border-radius: 1rem;
+  border-radius: 1.25rem;
 }
 .bezel-inner {
   background: var(--bg-secondary);
-  border-radius: calc(1rem - 3px);
+  border-radius: calc(1.25rem - 3px);
   box-shadow: var(--inner-highlight);
+}
+
+/* Skeleton shimmer for loading states */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton-shimmer {
+  background: linear-gradient(90deg, var(--bg-tertiary) 25%, var(--hover-bg) 50%, var(--bg-tertiary) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+/* Focus ring — accessible, elegant */
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--accent);
 }
