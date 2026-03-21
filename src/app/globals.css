@@ -192,3 +192,99 @@ input[type="range"]::-webkit-slider-thumb:active {
   outline: none;
   box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--accent);
 }
+
+/* === Golden Ring Action Button === */
+@keyframes gold-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.gold-ring-btn {
+  position: relative;
+  border-radius: 18px;
+  padding: 2px;
+  background: transparent;
+  isolation: isolate;
+}
+
+/* Glow layer — warm gold behind */
+.gold-ring-btn::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 22px;
+  background: #e8af48;
+  opacity: 0.15;
+  filter: blur(10px);
+  z-index: -2;
+  transition: opacity 400ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.gold-ring-btn:hover::before {
+  opacity: 0.25;
+}
+
+/* Clip container for the spinning gradient */
+.gold-ring-btn .gold-ring-clip {
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  overflow: hidden;
+  z-index: -1;
+}
+
+/* Spinning conic gradient — gold-dominant with white hotspots */
+.gold-ring-btn .gold-ring-gradient {
+  position: absolute;
+  inset: -50%;
+  width: 200%;
+  height: 200%;
+  background: conic-gradient(
+    from 0deg,
+    #533517 0%,
+    #c49746 12%,
+    #feeaa5 22%,
+    #ffffff 24%,
+    #ffc0cb 25.5%,
+    #feeaa5 27%,
+    #c49746 35%,
+    #533517 47%,
+    #c49746 62%,
+    #feeaa5 72%,
+    #ffffff 74%,
+    #93c5fd 75.5%,
+    #feeaa5 77%,
+    #c49746 85%,
+    #533517 100%
+  );
+  animation: gold-spin 4.5s linear infinite;
+}
+
+/* Inner plate — covers center, leaving 2px ring visible */
+.gold-ring-btn .gold-ring-inner {
+  position: relative;
+  border-radius: 16px;
+  background: var(--bg-secondary);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: transform 400ms cubic-bezier(0.34, 1.2, 0.64, 1),
+              background-color 300ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.gold-ring-btn:active .gold-ring-inner {
+  transform: scale(0.96);
+}
+
+/* Film grain noise overlay */
+.gold-ring-btn .gold-ring-inner::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.04;
+  pointer-events: none;
+}

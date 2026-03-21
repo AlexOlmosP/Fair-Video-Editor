@@ -169,19 +169,18 @@ export function Toolbar({ onToggleProperties, showProperties }: ToolbarProps) {
           </svg>
         </button>
 
-        {/* Export Button — pill with trailing icon */}
-        <button
-          onClick={() => setShowExport(true)}
-          className="pl-5 pr-3 py-2 bg-[var(--accent-export)] hover:bg-emerald-400 rounded-full text-[13px] font-semibold text-white btn-press flex items-center gap-2.5 group"
-          style={{ boxShadow: '0 2px 12px rgba(16, 185, 129, 0.3), inset 0 1px 1px rgba(255,255,255,0.15)' }}
-        >
-          Export
-          <span className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-0.5 group-hover:-translate-y-px group-hover:scale-105">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25" />
+        {/* Export Button — golden ring glassmorphism */}
+        <div className="gold-ring-btn cursor-pointer" onClick={() => setShowExport(true)}>
+          <div className="gold-ring-clip">
+            <div className="gold-ring-gradient" />
+          </div>
+          <div className="gold-ring-inner px-5 py-2 text-[13px] font-semibold text-[var(--text-primary)]">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
             </svg>
-          </span>
-        </button>
+            Export
+          </div>
+        </div>
       </div>
 
       {showExport && <ExportModal onClose={() => setShowExport(false)} />}
