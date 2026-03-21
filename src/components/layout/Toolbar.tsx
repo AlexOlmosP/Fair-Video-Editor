@@ -84,7 +84,13 @@ export function Toolbar({ onToggleProperties, showProperties }: ToolbarProps) {
             VE
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[13px] font-medium text-[var(--text-primary)] tracking-tight">{projectName}</span>
+            <input
+              type="text"
+              value={projectName}
+              onChange={(e) => useProjectStore.getState().updateSettings({ name: e.target.value })}
+              className="text-[13px] font-medium text-[var(--text-primary)] tracking-tight bg-transparent border-none outline-none hover:bg-[var(--hover-bg)] focus:bg-[var(--bg-tertiary)] rounded-lg px-1.5 py-0.5 -ml-1.5 w-40 focus:ring-1 focus:ring-[var(--accent)]"
+              spellCheck={false}
+            />
             {saveStatus === 'saved' && (
               <span className="text-[10px] text-emerald-500 font-medium animate-pulse">Saved</span>
             )}
