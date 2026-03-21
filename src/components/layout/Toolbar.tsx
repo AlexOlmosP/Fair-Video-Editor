@@ -139,7 +139,9 @@ export function Toolbar({ onToggleProperties, showProperties }: ToolbarProps) {
               </svg>
             ) : (
               <svg className="w-[15px] h-[15px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 3h11l4 4v13a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 3v5h8V3" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 21v-7h10v7" />
               </svg>
             )}
           </button>
