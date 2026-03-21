@@ -288,6 +288,18 @@ export function CanvasInteraction({ canvasRef }: CanvasInteractionProps) {
         updateClip(drag.clipId, {
           position: { x: newX, y: newY },
         });
+
+        // Caption block editing: move all captions on the same track together
+        const { tracks, clips: allClips } = useTimelineStore.getState();
+        const draggedClip = allClips[drag.clipId];
+        if (draggedClip && tracks[draggedClip.trackId]?.type === 'caption') {
+          const siblings = Object.values(allClips).filter(
+            (c) => c.trackId === draggedClip.trackId && c.id !== drag.clipId
+          );
+          for (const sib of siblings) {
+            updateClip(sib.id, { position: { x: newX, y: newY } });
+          }
+        }
       } else {
         // Resize
         const clip = useTimelineStore.getState().clips[drag.clipId];
@@ -333,20 +345,31 @@ export function CanvasInteraction({ canvasRef }: CanvasInteractionProps) {
 
         const locked = useProjectStore.getState().aspectRatioLocked;
 
+        let finalScaleX: number, finalScaleY: number;
         if (locked) {
-          // Uniform scaling — average both axes
           const scaleDelta = (dxNorm + dyNorm) / 2;
           const newScale = Math.max(0.05, Math.min(5, drag.startScaleX + scaleDelta));
-          updateClip(drag.clipId, {
-            scale: { x: newScale, y: newScale },
-          });
+          finalScaleX = newScale;
+          finalScaleY = newScale;
         } else {
-          // Free scaling — independent X/Y
-          const newScaleX = Math.max(0.05, Math.min(5, drag.startScaleX + dxNorm));
-          const newScaleY = Math.max(0.05, Math.min(5, drag.startScaleY + dyNorm));
-          updateClip(drag.clipId, {
-            scale: { x: newScaleX, y: newScaleY },
-          });
+          finalScaleX = Math.max(0.05, Math.min(5, drag.startScaleX + dxNorm));
+          finalScaleY = Math.max(0.05, Math.min(5, drag.startScaleY + dyNorm));
+        }
+
+        updateClip(drag.clipId, {
+          scale: { x: finalScaleX, y: finalScaleY },
+        });
+
+        // Caption block editing: scale all captions on the same track together
+        const { tracks: allTracks, clips: allClips2 } = useTimelineStore.getState();
+        const scaledClip = allClips2[drag.clipId];
+        if (scaledClip && allTracks[scaledClip.trackId]?.type === 'caption') {
+          const siblings = Object.values(allClips2).filter(
+            (c) => c.trackId === scaledClip.trackId && c.id !== drag.clipId
+          );
+          for (const sib of siblings) {
+            updateClip(sib.id, { scale: { x: finalScaleX, y: finalScaleY } });
+          }
         }
       }
     };
