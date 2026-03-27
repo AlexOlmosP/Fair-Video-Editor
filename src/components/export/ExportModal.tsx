@@ -10,8 +10,8 @@ import { getTimelineDuration, renderFrameToCanvasExport } from '@/engine/export/
 
 const QUALITY_PRESETS = [
   { key: 'standard', label: 'Standard', bps: 5_000_000 },
-  { key: 'high', label: 'High', bps: 10_000_000 },
-  { key: 'ultra', label: 'Ultra', bps: 20_000_000 },
+  { key: 'high', label: 'High', bps: 12_000_000 },
+  { key: 'ultra', label: 'Ultra', bps: 25_000_000 },
 ];
 
 interface ExportModalProps {
@@ -63,36 +63,50 @@ export function ExportModal({ onClose }: ExportModalProps) {
         return;
       }
 
-      // Create offscreen canvas for rendering
+      setExportStage('Initializing encoder...');
+
+      // Import webm-muxer dynamically
+      const { Muxer, ArrayBufferTarget } = await import('webm-muxer');
+
+      const target = new ArrayBufferTarget();
+      const muxer = new Muxer({
+        target,
+        video: {
+          codec: 'V_VP9',
+          width,
+          height,
+          frameRate,
+        },
+        firstTimestampBehavior: 'offset',
+      });
+
+      // Set up VideoEncoder with frame-level timestamp control
+      const encoder = new VideoEncoder({
+        output: (chunk, meta) => {
+          muxer.addVideoChunk(chunk, meta ?? undefined);
+        },
+        error: (e) => {
+          console.error('VideoEncoder error:', e);
+        },
+      });
+
+      encoder.configure({
+        codec: 'vp09.00.10.08',
+        width,
+        height,
+        bitrate: quality.bps,
+        framerate: frameRate,
+      });
+
+      // Create canvas for rendering
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext('2d')!;
 
-      // Set up MediaRecorder from canvas stream
-      const stream = canvas.captureStream(0); // 0 = manual frame capture
-      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-        ? 'video/webm;codecs=vp9'
-        : MediaRecorder.isTypeSupported('video/webm;codecs=vp8')
-          ? 'video/webm;codecs=vp8'
-          : 'video/webm';
+      const frameDurationMicros = Math.round(1_000_000 / frameRate);
 
-      const recorder = new MediaRecorder(stream, {
-        mimeType,
-        videoBitsPerSecond: quality.bps,
-      });
-
-      const chunks: Blob[] = [];
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
-      };
-
-      recorder.start(500); // collect data every 500ms
-
-      // Get the canvas track for manual frame capture
-      const canvasTrack = stream.getVideoTracks()[0];
-
-      // Render each frame
+      // Render and encode each frame with precise timestamps
       for (let i = 0; i < totalFrames; i++) {
         const time = i / frameRate;
 
@@ -125,35 +139,54 @@ export function ExportModal({ onClose }: ExportModalProps) {
           elements as Record<string, HTMLVideoElement | HTMLImageElement>,
         );
 
-        // Signal MediaRecorder to capture this frame
-        // @ts-expect-error - requestFrame exists on CanvasCaptureMediaStreamTrack
-        if (canvasTrack.requestFrame) canvasTrack.requestFrame();
+        // Create VideoFrame with precise timestamp
+        const frame = new VideoFrame(canvas, {
+          timestamp: i * frameDurationMicros,
+          duration: frameDurationMicros,
+        });
 
-        // Yield every 3 frames to keep UI responsive
+        // Encode — keyframe every 2 seconds
+        const isKeyFrame = i % (frameRate * 2) === 0;
+        encoder.encode(frame, { keyFrame: isKeyFrame });
+        frame.close();
+
+        // Back-pressure: wait if encoder queue is getting large
+        if (encoder.encodeQueueSize > 5) {
+          await new Promise<void>((r) => {
+            const check = () => {
+              if (encoder.encodeQueueSize <= 2) r();
+              else setTimeout(check, 10);
+            };
+            check();
+          });
+        }
+
+        // Yield every 3 frames for UI responsiveness
         if (i % 3 === 0) await new Promise((r) => setTimeout(r, 0));
       }
 
-      // Stop recorder and wait for final data
-      setExportStage('Finalizing...');
+      // Flush encoder and finalize
+      setExportStage('Encoding...');
       setExportProgress(92);
+      await encoder.flush();
+      encoder.close();
 
-      await new Promise<void>((resolve) => {
-        recorder.onstop = () => resolve();
-        recorder.stop();
-      });
+      muxer.finalize();
 
-      const videoBlob = new Blob(chunks, { type: mimeType });
-      if (videoBlob.size === 0) throw new Error('Export produced an empty file.');
+      const videoBuffer = target.buffer;
+      if (!videoBuffer || videoBuffer.byteLength === 0) {
+        throw new Error('Export produced an empty file.');
+      }
 
       // Download
       setExportStage('Downloading...');
       setExportProgress(98);
 
-      const url = URL.createObjectURL(videoBlob);
+      const blob = new Blob([videoBuffer], { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const ext = mimeType.includes('webm') ? 'webm' : 'mp4';
-      a.download = `${settings.name || 'export'}.${ext}`;
+      a.download = `${settings.name || 'export'}.webm`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -205,11 +238,11 @@ export function ExportModal({ onClose }: ExportModalProps) {
         </div>
 
         <div className="px-5 py-4 space-y-4">
-          {/* Output info from Settings */}
+          {/* Output info */}
           <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-[var(--bg-tertiary)]">
             <span className="text-xs text-[var(--text-muted)]">Output</span>
             <span className="text-xs font-medium text-[var(--text-primary)] font-mono">
-              {settings.width}x{settings.height} @ {settings.frameRate}fps • WebM
+              {settings.width}x{settings.height} @ {settings.frameRate}fps
             </span>
           </div>
 
