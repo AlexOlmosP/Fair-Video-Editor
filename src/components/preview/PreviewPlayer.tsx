@@ -391,17 +391,19 @@ export function PreviewPlayer() {
     }
   }, [projectW, projectH, settings.backgroundColor]);
 
-  // Single RAF loop: advances playhead + renders in one tick
+  // Render loop: 60fps when playing, 30fps when paused (still responsive to drags)
   useEffect(() => {
     let running = true;
     lastFrameTimeRef.current = performance.now();
+    let lastPausedRender = 0;
 
     const tick = (now: number) => {
       if (!running) return;
 
-      // Advance playhead if playing
       const store = useTimelineStore.getState();
+
       if (store.isPlaying) {
+        // Advance playhead during playback — full 60fps
         const delta = (now - lastFrameTimeRef.current) / 1000;
         const newTime = store.playheadTime + delta;
         const maxDuration = store.duration;
@@ -412,10 +414,16 @@ export function PreviewPlayer() {
         } else {
           store.setPlayheadTime(newTime);
         }
+        lastFrameTimeRef.current = now;
+        renderFrame();
+      } else {
+        // When paused, render at 30fps to stay responsive to drags/edits
+        lastFrameTimeRef.current = now;
+        if (now - lastPausedRender > 33) {
+          lastPausedRender = now;
+          renderFrame();
+        }
       }
-      lastFrameTimeRef.current = now;
-
-      renderFrame();
       rafRef.current = requestAnimationFrame(tick);
     };
 

@@ -205,6 +205,10 @@ export function Clip({ clip, trackColor, pixelsPerSecond }: ClipProps) {
     const edges = getSnapEdges(clip.id);
     const snapThreshold = SNAP_THRESHOLD_PX / pixelsPerSecond;
 
+    // Get source media duration to prevent extending beyond it
+    const el = useMediaStore.getState().elements[clip.assetId];
+    const sourceDuration = el instanceof HTMLVideoElement ? el.duration : Infinity;
+
     const onMove = (me: MouseEvent) => {
       const deltaX = me.clientX - startX;
       const deltaTime = deltaX / pixelsPerSecond;
@@ -215,10 +219,14 @@ export function Clip({ clip, trackColor, pixelsPerSecond }: ClipProps) {
 
       const newDuration = Math.max(MIN_CLIP_DURATION, newEndTime - origStartTime);
       const durationDelta = newDuration - origDuration;
+      const newOutPoint = origOutPoint + durationDelta / clip.speed;
+
+      // Don't extend beyond source media duration
+      if (newOutPoint > sourceDuration) return;
 
       updateClip(clip.id, {
         duration: newDuration,
-        outPoint: origOutPoint + durationDelta / clip.speed,
+        outPoint: newOutPoint,
       });
     };
 
@@ -319,22 +327,22 @@ export function Clip({ clip, trackColor, pixelsPerSecond }: ClipProps) {
           </div>
         )}
 
-        {/* Left trim handle */}
+        {/* Left trim handle — 10px grab zone for easier trimming */}
         <div
           data-trim-handle="left"
-          className="absolute left-0 top-0 bottom-0 w-2.5 cursor-ew-resize bg-white/10 hover:bg-white/30 transition-colors z-20"
+          className="absolute left-0 top-0 bottom-0 w-[10px] cursor-ew-resize hover:bg-white/25 transition-colors z-20 group/trim"
           onMouseDown={handleTrimLeft}
         >
-          <div className="absolute left-0.5 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded bg-white/50" />
+          <div className="absolute left-[3px] top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full bg-white/40 group-hover/trim:bg-white/80 transition-colors" />
         </div>
 
-        {/* Right trim handle */}
+        {/* Right trim handle — 10px grab zone for easier trimming */}
         <div
           data-trim-handle="right"
-          className="absolute right-0 top-0 bottom-0 w-2.5 cursor-ew-resize bg-white/10 hover:bg-white/30 transition-colors z-20"
+          className="absolute right-0 top-0 bottom-0 w-[10px] cursor-ew-resize hover:bg-white/25 transition-colors z-20 group/trim"
           onMouseDown={handleTrimRight}
         >
-          <div className="absolute right-0.5 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded bg-white/50" />
+          <div className="absolute right-[3px] top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full bg-white/40 group-hover/trim:bg-white/80 transition-colors" />
         </div>
       </div>
 

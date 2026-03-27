@@ -59,11 +59,28 @@ interface ExportOptions {
   totalDuration: number;
   onProgress: (stage: string, frame: number, total: number) => void;
   writeFrame: (name: string, data: Blob) => Promise<void>;
+  deleteFrame?: (name: string) => Promise<void>;
 }
 
 /**
  * Render a single frame to the canvas at the given time.
  */
+export function renderFrameToCanvasExport(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  projectWidth: number,
+  projectHeight: number,
+  backgroundColor: string,
+  time: number,
+  clips: Record<string, Clip>,
+  tracks: Record<string, Track>,
+  trackOrder: string[],
+  elements: Record<string, HTMLVideoElement | HTMLImageElement>,
+) {
+  renderFrameToCanvas(ctx, width, height, projectWidth, projectHeight, backgroundColor, time, clips, tracks, trackOrder, elements);
+}
+
 function renderFrameToCanvas(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -319,20 +336,20 @@ export async function renderExportFrames(opts: ExportOptions): Promise<number> {
     // Render the frame
     renderFrameToCanvas(ctx, width, height, projectWidth, projectHeight, backgroundColor, time, clips, tracks, trackOrder, elements);
 
-    // Capture frame as JPEG
+    // Capture frame as JPEG (0.85 quality to reduce WASM FS pressure)
     const frameBlob = await new Promise<Blob>((resolve) => {
       canvas.toBlob(
         (blob) => resolve(blob!),
         'image/jpeg',
-        0.92
+        0.85
       );
     });
 
     const frameName = `frame_${String(i).padStart(6, '0')}.jpg`;
     await writeFrame(frameName, frameBlob);
 
-    // Yield to event loop every 10 frames to keep UI responsive
-    if (i % 10 === 0) {
+    // Yield to event loop every 5 frames to keep UI responsive
+    if (i % 5 === 0) {
       await new Promise((resolve) => setTimeout(resolve, 0));
     }
   }

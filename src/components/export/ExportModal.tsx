@@ -3,16 +3,15 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
-import { useFFmpeg } from '@/hooks/useFFmpeg';
 import { useTimelineStore } from '@/store/useTimelineStore';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useMediaStore } from '@/store/useMediaStore';
-import { renderExportFrames, getTimelineDuration } from '@/engine/export/canvasExporter';
+import { getTimelineDuration, renderFrameToCanvasExport } from '@/engine/export/canvasExporter';
 
 const QUALITY_PRESETS = [
-  { key: 'standard', label: 'Standard', codec: 'libx264', videoBitrate: '5000k', audioBitrate: '128k' },
-  { key: 'high', label: 'High', codec: 'libx264', videoBitrate: '10000k', audioBitrate: '192k' },
-  { key: 'ultra', label: 'Ultra', codec: 'libx264', videoBitrate: '20000k', audioBitrate: '256k' },
+  { key: 'standard', label: 'Standard', bps: 5_000_000 },
+  { key: 'high', label: 'High', bps: 10_000_000 },
+  { key: 'ultra', label: 'Ultra', bps: 20_000_000 },
 ];
 
 interface ExportModalProps {
@@ -24,7 +23,6 @@ export function ExportModal({ onClose }: ExportModalProps) {
   const [isExporting, setIsExporting] = useState(false);
   const [exportStage, setExportStage] = useState('');
   const [exportProgress, setExportProgress] = useState(0);
-  const { isLoaded, isLoading, error, load, exec, writeFile, readFile, setOnProgress } = useFFmpeg();
 
   const handleExport = useCallback(async () => {
     const quality = QUALITY_PRESETS.find((q) => q.key === selectedQuality) || QUALITY_PRESETS[1];
@@ -33,16 +31,10 @@ export function ExportModal({ onClose }: ExportModalProps) {
     setExportProgress(0);
 
     try {
-      if (!isLoaded) {
-        setExportStage('Loading FFmpeg...');
-        await load();
-      }
-
       const { setIsPlaying } = useTimelineStore.getState();
       setIsPlaying(false);
 
       const { clips, tracks, trackOrder } = useTimelineStore.getState();
-      const { assets } = useProjectStore.getState();
       const { elements } = useMediaStore.getState();
       const { settings } = useProjectStore.getState();
 
@@ -60,167 +52,112 @@ export function ExportModal({ onClose }: ExportModalProps) {
         return;
       }
 
-      // Use project dimensions and FPS directly from Settings
       const width = settings.width;
       const height = settings.height;
       const frameRate = settings.frameRate;
-
-      setExportStage('Rendering frames...');
-
-      const exportOpts = {
-        width,
-        height,
-        projectWidth: width,
-        projectHeight: height,
-        frameRate,
-        backgroundColor: settings.backgroundColor,
-        clips,
-        tracks,
-        trackOrder,
-        elements: elements as Record<string, HTMLVideoElement | HTMLImageElement>,
-        totalDuration,
-        onProgress: (stage: string, frame: number, total: number) => {
-          setExportStage(`${stage} ${frame}/${total}`);
-          setExportProgress(Math.round((frame / total) * 60));
-        },
-        writeFrame: async (name: string, blob: Blob) => {
-          await writeFile(name, blob);
-        },
-      };
-
-      // Render JPEG frames + encode with FFmpeg (reliable path)
-      setExportStage('Rendering frames...');
-      const totalFrames = await renderExportFrames(exportOpts);
+      const totalFrames = Math.ceil(totalDuration * frameRate);
 
       if (totalFrames === 0) {
-        setExportStage('No frames rendered');
+        setExportStage('Timeline is empty');
         setIsExporting(false);
         return;
       }
 
-      setExportStage('Encoding video...');
-      setExportProgress(60);
+      // Create offscreen canvas for rendering
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d')!;
 
-      // Encode directly from JPEG image sequence (no concat demuxer — simpler, more reliable)
-      setOnProgress((p) => {
-        setExportProgress(60 + Math.round((p / 100) * 5));
-        setExportStage(`Encoding video... ${p}%`);
+      // Set up MediaRecorder from canvas stream
+      const stream = canvas.captureStream(0); // 0 = manual frame capture
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? 'video/webm;codecs=vp9'
+        : MediaRecorder.isTypeSupported('video/webm;codecs=vp8')
+          ? 'video/webm;codecs=vp8'
+          : 'video/webm';
+
+      const recorder = new MediaRecorder(stream, {
+        mimeType,
+        videoBitsPerSecond: quality.bps,
       });
 
-      await exec([
-        '-framerate', String(frameRate),
-        '-i', 'frame_%06d.jpg',
-        '-c:v', quality.codec,
-        '-b:v', quality.videoBitrate,
-        '-pix_fmt', 'yuv420p',
-        '-preset', 'ultrafast',
-        '-movflags', '+faststart',
-        '-y', 'video_only.mp4',
-      ]);
-      setOnProgress(null);
-      setExportProgress(65);
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
 
-      // Cleanup frame files to free WASM memory before audio processing
-      const worker = (await import('@/engine/ffmpeg/FFmpegWorker')).FFmpegWorker.getInstance();
+      recorder.start(500); // collect data every 500ms
+
+      // Get the canvas track for manual frame capture
+      const canvasTrack = stream.getVideoTracks()[0];
+
+      // Render each frame
       for (let i = 0; i < totalFrames; i++) {
-        try { await worker.deleteFile(`frame_${String(i).padStart(6, '0')}.jpg`); } catch {}
-      }
+        const time = i / frameRate;
 
-      // Audio
-      const audioClips = clipList.filter((c) => {
-        if (c.transitionData || c.textData) return false;
-        const asset = assets[c.assetId];
-        return asset && (asset.type === 'video' || asset.type === 'audio') && c.volume > 0;
-      });
+        setExportStage(`Rendering frame ${i + 1}/${totalFrames}`);
+        setExportProgress(Math.round((i / totalFrames) * 90));
 
-      let hasAudio = false;
-      if (audioClips.length > 0) {
-        setExportStage('Processing audio...');
-        const writtenAssets = new Set<string>();
-        for (const clip of audioClips) {
-          if (writtenAssets.has(clip.assetId)) continue;
-          const asset = assets[clip.assetId];
-          if (!asset) continue;
-          try {
-            const response = await fetch(asset.src);
-            const blob = await response.blob();
-            await writeFile(`src_${clip.assetId.slice(0, 8)}.mp4`, blob);
-            writtenAssets.add(clip.assetId);
-          } catch {}
-        }
-
-        if (writtenAssets.size > 0) {
-          const inputs: string[] = [];
-          const filterParts: string[] = [];
-          const mixInputs: string[] = [];
-
-          audioClips.forEach((clip, idx) => {
-            if (!writtenAssets.has(clip.assetId)) return;
-            inputs.push('-i', `src_${clip.assetId.slice(0, 8)}.mp4`);
-            const inPoint = clip.inPoint;
-            const outPoint = clip.inPoint + clip.duration * clip.speed;
-            const delayMs = Math.round(clip.startTime * 1000);
-            const label = `a${idx}`;
-            let filter = `[${idx}:a]atrim=start=${inPoint.toFixed(3)}:end=${outPoint.toFixed(3)}`;
-            if (clip.speed !== 1) {
-              filter += `,atempo=${Math.max(0.5, Math.min(2.0, clip.speed)).toFixed(3)}`;
-            }
-            filter += `,adelay=${delayMs}|${delayMs},volume=${clip.volume.toFixed(2)}[${label}]`;
-            filterParts.push(filter);
-            mixInputs.push(`[${label}]`);
-          });
-
-          if (filterParts.length > 0) {
-            try {
-              await exec([
-                ...inputs,
-                '-filter_complex', filterParts.join('; ') + `; ${mixInputs.join('')}amix=inputs=${mixInputs.length}:duration=longest[aout]`,
-                '-map', '[aout]', '-c:a', 'aac', '-b:a', quality.audioBitrate, '-y', 'audio_mix.aac',
-              ]);
-              hasAudio = true;
-            } catch {
-              console.warn('Audio mixing failed, exporting video only');
+        // Seek active videos to the correct time
+        for (const clipObj of Object.values(clips)) {
+          if (clipObj.transitionData || clipObj.textData) continue;
+          const el = elements[clipObj.assetId];
+          if (!(el instanceof HTMLVideoElement)) continue;
+          if (time >= clipObj.startTime && time < clipObj.startTime + clipObj.duration) {
+            const internalTime = clipObj.inPoint + ((time - clipObj.startTime) * clipObj.speed);
+            if (Math.abs(el.currentTime - internalTime) > 0.02) {
+              el.currentTime = internalTime;
+              await new Promise<void>((r) => {
+                const done = () => { el.removeEventListener('seeked', done); r(); };
+                el.addEventListener('seeked', done);
+                setTimeout(done, 500);
+              });
             }
           }
         }
+
+        // Render the composited frame
+        renderFrameToCanvasExport(
+          ctx, width, height, width, height,
+          settings.backgroundColor, time,
+          clips, tracks, trackOrder,
+          elements as Record<string, HTMLVideoElement | HTMLImageElement>,
+        );
+
+        // Signal MediaRecorder to capture this frame
+        // @ts-expect-error - requestFrame exists on CanvasCaptureMediaStreamTrack
+        if (canvasTrack.requestFrame) canvasTrack.requestFrame();
+
+        // Yield every 3 frames to keep UI responsive
+        if (i % 3 === 0) await new Promise((r) => setTimeout(r, 0));
       }
 
-      setExportProgress(80);
+      // Stop recorder and wait for final data
+      setExportStage('Finalizing...');
+      setExportProgress(92);
 
-      const outputFile = 'output.mp4';
-      if (hasAudio) {
-        setExportStage('Muxing audio and video...');
-        await exec(['-i', 'video_only.mp4', '-i', 'audio_mix.aac', '-c:v', 'copy', '-c:a', 'copy', '-movflags', '+faststart', '-y', outputFile]);
-      } else {
-        await exec(['-i', 'video_only.mp4', '-c', 'copy', '-y', outputFile]);
-      }
+      await new Promise<void>((resolve) => {
+        recorder.onstop = () => resolve();
+        recorder.stop();
+      });
 
-      setExportProgress(90);
-
-      // Cleanup intermediates
-      const cleanup = (await import('@/engine/ffmpeg/FFmpegWorker')).FFmpegWorker.getInstance();
-      try { await cleanup.deleteFile('video_only.mp4'); } catch {}
-      try { await cleanup.deleteFile('audio_mix.aac'); } catch {}
-      for (const clip of audioClips) {
-        try { await cleanup.deleteFile(`src_${clip.assetId.slice(0, 8)}.mp4`); } catch {}
-      }
+      const videoBlob = new Blob(chunks, { type: mimeType });
+      if (videoBlob.size === 0) throw new Error('Export produced an empty file.');
 
       // Download
       setExportStage('Downloading...');
-      const data = await readFile(outputFile);
-      if (data.length === 0) throw new Error('Export produced an empty file.');
+      setExportProgress(98);
 
-      const blob = new Blob([new Uint8Array(data)], { type: 'video/mp4' });
-      const url = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(videoBlob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${settings.name || 'export'}.mp4`;
+      const ext = mimeType.includes('webm') ? 'webm' : 'mp4';
+      a.download = `${settings.name || 'export'}.${ext}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-
-      try { await cleanup.deleteFile(outputFile); } catch {}
 
       setExportProgress(100);
       setExportStage('Export complete!');
@@ -229,10 +166,9 @@ export function ExportModal({ onClose }: ExportModalProps) {
       console.error('Export error:', err);
       setExportStage(`Export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
-      setOnProgress(null);
       setIsExporting(false);
     }
-  }, [selectedQuality, isLoaded, load, exec, writeFile, readFile, setOnProgress, onClose]);
+  }, [selectedQuality, onClose]);
 
   const overlayRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -248,6 +184,7 @@ export function ExportModal({ onClose }: ExportModalProps) {
   }, []);
 
   const settings = useProjectStore((s) => s.settings);
+  const qualityLabel = QUALITY_PRESETS.find((q) => q.key === selectedQuality)?.bps;
 
   return (
     <div ref={overlayRef} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md" style={{ opacity: 0 }} onClick={onClose}>
@@ -272,7 +209,7 @@ export function ExportModal({ onClose }: ExportModalProps) {
           <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-[var(--bg-tertiary)]">
             <span className="text-xs text-[var(--text-muted)]">Output</span>
             <span className="text-xs font-medium text-[var(--text-primary)] font-mono">
-              {settings.width}x{settings.height} @ {settings.frameRate}fps
+              {settings.width}x{settings.height} @ {settings.frameRate}fps • WebM
             </span>
           </div>
 
@@ -295,7 +232,7 @@ export function ExportModal({ onClose }: ExportModalProps) {
               ))}
             </div>
             <p className="text-[10px] text-[var(--text-muted)] mt-1.5">
-              Bitrate: {QUALITY_PRESETS.find((q) => q.key === selectedQuality)?.videoBitrate}
+              Bitrate: {qualityLabel ? `${qualityLabel / 1_000_000}Mbps` : ''}
             </p>
           </div>
 
@@ -318,8 +255,6 @@ export function ExportModal({ onClose }: ExportModalProps) {
               )}
             </div>
           )}
-
-          {error && <p className="text-red-400 text-xs">{error}</p>}
         </div>
 
         {/* Footer */}
@@ -336,7 +271,7 @@ export function ExportModal({ onClose }: ExportModalProps) {
             className="px-5 py-2 text-xs rounded-xl bg-[var(--accent-export)] hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-white btn-press"
             style={{ boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)' }}
           >
-            {isExporting ? 'Exporting...' : isLoading ? 'Loading...' : 'Export'}
+            {isExporting ? 'Exporting...' : 'Export'}
           </button>
         </div>
       </div>

@@ -31,6 +31,7 @@ export function AssetsPanel() {
         videoEl.preload = 'auto';
         videoEl.muted = true;
         videoEl.playsInline = true;
+        videoEl.loop = false;
         await new Promise<void>((resolve) => {
           videoEl.onloadeddata = () => resolve();
           videoEl.onerror = () => resolve();
@@ -310,11 +311,38 @@ function generateThumbnail(
 function getVideoInfo(url: string): Promise<{ duration: number; width: number; height: number }> {
   return new Promise((resolve) => {
     const el = document.createElement('video');
-    el.preload = 'metadata';
-    el.onloadedmetadata = () => {
-      resolve({ duration: el.duration || 5, width: el.videoWidth, height: el.videoHeight });
+    el.preload = 'auto';
+    let resolved = false;
+
+    const tryResolve = () => {
+      if (resolved) return;
+      const dur = el.duration;
+      // Wait until we get a real finite duration
+      if (!dur || !isFinite(dur) || dur <= 0) return;
+      resolved = true;
+      resolve({ duration: dur, width: el.videoWidth || 1920, height: el.videoHeight || 1080 });
+      el.removeEventListener('durationchange', tryResolve);
+      el.removeEventListener('loadeddata', tryResolve);
     };
-    el.onerror = () => resolve({ duration: 5, width: 1920, height: 1080 });
+
+    el.onloadedmetadata = tryResolve;
+    el.addEventListener('durationchange', tryResolve);
+    el.addEventListener('loadeddata', tryResolve);
+    el.onerror = () => {
+      if (!resolved) { resolved = true; resolve({ duration: 5, width: 1920, height: 1080 }); }
+    };
+    // Timeout fallback for stubborn codecs
+    setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        const dur = el.duration;
+        resolve({
+          duration: isFinite(dur) && dur > 0 ? dur : 30,
+          width: el.videoWidth || 1920,
+          height: el.videoHeight || 1080,
+        });
+      }
+    }, 5000);
     el.src = url;
   });
 }
