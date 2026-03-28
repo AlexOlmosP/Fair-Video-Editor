@@ -7,6 +7,58 @@ export type TrackType = 'video' | 'audio' | 'overlay' | 'text' | 'caption';
 
 export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten';
 
+export interface ClipGroup {
+  id: string;
+  color: string;
+}
+
+// ─── Color Correction ──────────────────────────────────────────────────────
+
+export interface HslChannelAdjustment {
+  hue: number;        // -100 to +100
+  saturation: number; // -100 to +100
+  luminance: number;  // -100 to +100
+}
+
+export interface ColorCorrectionParams {
+  /** All values: -100 to +100, where 0 = no change */
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  temperature: number;
+  tint: number;
+  hsl: {
+    red: HslChannelAdjustment;
+    orange: HslChannelAdjustment;
+    yellow: HslChannelAdjustment;
+    green: HslChannelAdjustment;
+    cyan: HslChannelAdjustment;
+    blue: HslChannelAdjustment;
+    purple: HslChannelAdjustment;
+    magenta: HslChannelAdjustment;
+  };
+}
+
+const _Z: HslChannelAdjustment = { hue: 0, saturation: 0, luminance: 0 };
+
+export const DEFAULT_COLOR_CORRECTION: ColorCorrectionParams = {
+  brightness: 0,
+  contrast: 0,
+  saturation: 0,
+  temperature: 0,
+  tint: 0,
+  hsl: {
+    red:     { ..._Z },
+    orange:  { ..._Z },
+    yellow:  { ..._Z },
+    green:   { ..._Z },
+    cyan:    { ..._Z },
+    blue:    { ..._Z },
+    purple:  { ..._Z },
+    magenta: { ..._Z },
+  },
+};
+
 export interface Keyframe {
   id: string;
   /** Time relative to the clip's internal start, NOT the global timeline */
@@ -26,6 +78,8 @@ export interface MediaAsset {
   width?: number;
   height?: number;
   thumbnailUrl?: string;
+  size?: number;
+  dateAdded?: number;
 }
 
 export interface ClipAnimation {
@@ -60,6 +114,8 @@ export interface Clip {
   rotation: number;
   /** Filters and effects applied */
   filters: string[];
+  /** Per-clip color correction (Basic + HSL panels) */
+  colorCorrection?: ColorCorrectionParams;
   /** Keyframe animations */
   keyframes: Keyframe[];
   /** Named animation presets with timing */
@@ -80,6 +136,10 @@ export interface Clip {
   locked: boolean;
   /** Whether this clip is visible */
   visible: boolean;
+  /** Crop values as percentages 0-100 (how much to trim from each edge) */
+  crop?: { top: number; right: number; bottom: number; left: number };
+  /** Group this clip belongs to */
+  groupId?: string;
 }
 
 export type TransitionType = 'fade-black' | 'fade-white' | 'crossfade';
@@ -142,9 +202,32 @@ export interface TTSData {
   pitch: number;
 }
 
+export interface TimelineMarker {
+  id: string;
+  time: number;
+  label?: string;
+  color?: string;
+}
+
+export interface TimelineSnapshot {
+  tracks: Record<string, Track>;
+  clips: Record<string, Clip>;
+  trackOrder: string[];
+  groups?: Record<string, ClipGroup>;
+}
+
+export interface ProjectSnapshot {
+  settings: ProjectSettings;
+}
+
+export type HistoryPayload = {
+  timeline?: TimelineSnapshot;
+  project?: ProjectSnapshot;
+};
+
 export type HistoryAction = {
   type: string;
   timestamp: number;
-  before: unknown;
-  after: unknown;
+  before: HistoryPayload;
+  after: HistoryPayload;
 };

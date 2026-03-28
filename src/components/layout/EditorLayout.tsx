@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Toolbar } from './Toolbar';
 import { Sidebar, type SidebarTab } from './Sidebar';
 import { ThemeToggle } from './ThemeToggle';
@@ -16,16 +16,50 @@ import { PreviewPlayer } from '../preview/PreviewPlayer';
 import { Timeline } from '../timeline/Timeline';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useAudioPlayback } from '@/hooks/useAudioPlayback';
+import { useAudioScrub } from '@/hooks/useAudioScrub';
+import { LAYOUT_PRESETS, type LayoutPresetName } from '@/lib/constants';
+
+const LAYOUT_STORAGE_KEY = 'fair-video-editor-layout';
+
+function loadSavedLayout() {
+  if (typeof window === 'undefined') return null;
+  try {
+    return JSON.parse(localStorage.getItem(LAYOUT_STORAGE_KEY) || 'null') as {
+      leftPanelWidth: number;
+      rightPanelWidth: number;
+      timelineHeight: number;
+      activePreset: LayoutPresetName | null;
+    } | null;
+  } catch {
+    return null;
+  }
+}
 
 export function EditorLayout() {
   useKeyboardShortcuts();
   useAudioPlayback();
-  const [leftPanelWidth, setLeftPanelWidth] = useState(328);
-  const [rightPanelWidth, setRightPanelWidth] = useState(260);
-  const [timelineHeight, setTimelineHeight] = useState(300);
+  useAudioScrub();
+
+  const [leftPanelWidth, setLeftPanelWidth] = useState(() => loadSavedLayout()?.leftPanelWidth ?? 328);
+  const [rightPanelWidth, setRightPanelWidth] = useState(() => loadSavedLayout()?.rightPanelWidth ?? 260);
+  const [timelineHeight, setTimelineHeight] = useState(() => loadSavedLayout()?.timelineHeight ?? 300);
+  const [activePreset, setActivePreset] = useState<LayoutPresetName | null>(() => loadSavedLayout()?.activePreset ?? 'Default');
   const [isDragOver, setIsDragOver] = useState(false);
   const [leftTab, setLeftTab] = useState<SidebarTab>('media');
   const [showRightPanel, setShowRightPanel] = useState(true);
+
+  // Persist layout to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify({ leftPanelWidth, rightPanelWidth, timelineHeight, activePreset }));
+  }, [leftPanelWidth, rightPanelWidth, timelineHeight, activePreset]);
+
+  const applyPreset = useCallback((name: LayoutPresetName) => {
+    const preset = LAYOUT_PRESETS[name];
+    setLeftPanelWidth(preset.leftPanelWidth);
+    setRightPanelWidth(preset.rightPanelWidth);
+    setTimelineHeight(preset.timelineHeight);
+    setActivePreset(name);
+  }, []);
 
   const handleGlobalDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -61,7 +95,12 @@ export function EditorLayout() {
         </div>
       )}
 
-      <Toolbar onToggleProperties={() => setShowRightPanel((v) => !v)} showProperties={showRightPanel} />
+      <Toolbar
+        onToggleProperties={() => setShowRightPanel((v) => !v)}
+        showProperties={showRightPanel}
+        layoutPreset={activePreset}
+        onLayoutPresetChange={applyPreset}
+      />
 
       {/* Main Content Area */}
       <div className="flex flex-1 min-h-0">
@@ -91,6 +130,7 @@ export function EditorLayout() {
             const startWidth = leftPanelWidth;
             const onMove = (me: MouseEvent) => {
               setLeftPanelWidth(Math.max(200, Math.min(500, startWidth + me.clientX - startX)));
+              setActivePreset(null);
             };
             const onUp = () => {
               document.removeEventListener('mousemove', onMove);
@@ -123,6 +163,7 @@ export function EditorLayout() {
                 const startWidth = rightPanelWidth;
                 const onMove = (me: MouseEvent) => {
                   setRightPanelWidth(Math.max(200, Math.min(400, startWidth - (me.clientX - startX))));
+                  setActivePreset(null);
                 };
                 const onUp = () => {
                   document.removeEventListener('mousemove', onMove);
@@ -151,6 +192,7 @@ export function EditorLayout() {
           const startHeight = timelineHeight;
           const onMove = (me: MouseEvent) => {
             setTimelineHeight(Math.max(150, Math.min(600, startHeight - (me.clientY - startY))));
+            setActivePreset(null);
           };
           const onUp = () => {
             document.removeEventListener('mousemove', onMove);

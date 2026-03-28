@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { useTimelineStore } from '@/store/useTimelineStore';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useMediaStore } from '@/store/useMediaStore';
@@ -8,13 +8,17 @@ import { ClipContextMenu } from './ClipContextMenu';
 import type { Clip as ClipType } from '@/store/types';
 import { MIN_CLIP_DURATION, SNAP_THRESHOLD_PX } from '@/lib/constants';
 
-/** Collect all clip edge times across all tracks (except the given clip) */
+/** Collect all clip edge times and marker times across all tracks (except the given clip) */
 function getSnapEdges(excludeClipId: string): number[] {
-  const { clips } = useTimelineStore.getState();
+  const { clips, markers } = useTimelineStore.getState();
   const edges: number[] = [0]; // always snap to timeline start
   for (const c of Object.values(clips)) {
     if (c.id === excludeClipId) continue;
     edges.push(c.startTime, c.startTime + c.duration);
+  }
+  // Markers are valid snap targets
+  for (const m of markers) {
+    edges.push(m.time);
   }
   return edges;
 }
@@ -43,8 +47,17 @@ export function Clip({ clip, trackColor, pixelsPerSecond }: ClipProps) {
   const selectClip = useTimelineStore((s) => s.selectClip);
   const selectedClipIds = useTimelineStore((s) => s.selectedClipIds);
   const moveClip = useTimelineStore((s) => s.moveClip);
+  const moveGroupClips = useTimelineStore((s) => s.moveGroupClips);
   const updateClip = useTimelineStore((s) => s.updateClip);
+  const tracks = useTimelineStore((s) => s.tracks);
+  const groups = useTimelineStore((s) => s.groups);
   const assets = useProjectStore((s) => s.assets);
+
+  const groupColor = clip.groupId ? groups[clip.groupId]?.color : undefined;
+
+  const isTrackLocked = tracks[clip.trackId]?.locked ?? false;
+  const isEffectivelyLocked = clip.locked || isTrackLocked;
+
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [thumbnails, setThumbnails] = useState<string[]>([]);
 
@@ -52,6 +65,9 @@ export function Clip({ clip, trackColor, pixelsPerSecond }: ClipProps) {
   const asset = assets[clip.assetId];
   const left = clip.startTime * pixelsPerSecond;
   const width = clip.duration * pixelsPerSecond;
+  // Subscribe to waveform data so component re-renders when peaks arrive
+  const waveform = useMediaStore((s) => s.waveforms[clip.assetId]);
+  const waveCanvasRef = useRef<HTMLCanvasElement>(null);
 
   // Generate thumbnail strip for video clips
   useEffect(() => {
@@ -95,8 +111,38 @@ export function Clip({ clip, trackColor, pixelsPerSecond }: ClipProps) {
       // Re-generate only when width changes significantly (avoids thrashing during trim)
       Math.floor(width / 60)]);
 
+  // Draw real waveform on canvas whenever peaks, clip bounds, or width change
+  useEffect(() => {
+    if (!waveform || !asset || asset.type !== 'audio') return;
+    const canvas = waveCanvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Map clip's source window (inPoint→outPoint) into waveform sample range
+    const assetDuration = asset.duration || 1;
+    const startFrac = clip.inPoint / assetDuration;
+    const endFrac = Math.min(clip.outPoint, assetDuration) / assetDuration;
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+
+    for (let px = 0; px < w; px++) {
+      const frac = startFrac + (px / w) * (endFrac - startFrac);
+      const idx = Math.floor(frac * waveform.length);
+      const amplitude = waveform[Math.min(idx, waveform.length - 1)];
+      const barH = Math.max(1, amplitude * h);
+      ctx.fillRect(px, (h - barH) / 2, 1, barH);
+    }
+  }, [waveform, asset, clip.inPoint, clip.outPoint, Math.floor(width)]);
+
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isEffectivelyLocked) { selectClip(clip.id, e.shiftKey); return; }
     const target = e.target as HTMLElement;
     if (target.dataset.trimHandle) return;
 
@@ -127,20 +173,24 @@ export function Clip({ clip, trackColor, pixelsPerSecond }: ClipProps) {
         }
       }
 
-      // Cross-track drag: find track under cursor via data-track-id
-      let targetTrackId = origTrackId;
-      if (Math.abs(me.clientY - startY) > 15) {
-        const trackEls = document.querySelectorAll('[data-track-id]');
-        for (const el of trackEls) {
-          const rect = el.getBoundingClientRect();
-          if (me.clientY >= rect.top && me.clientY <= rect.bottom) {
-            targetTrackId = el.getAttribute('data-track-id') || origTrackId;
-            break;
+      if (clip.groupId) {
+        // Move all clips in the group together (no cross-track for groups)
+        moveGroupClips(clip.groupId, clip.id, Math.max(0, newStartTime));
+      } else {
+        // Cross-track drag: find track under cursor via data-track-id
+        let targetTrackId = origTrackId;
+        if (Math.abs(me.clientY - startY) > 15) {
+          const trackEls = document.querySelectorAll('[data-track-id]');
+          for (const el of trackEls) {
+            const rect = el.getBoundingClientRect();
+            if (me.clientY >= rect.top && me.clientY <= rect.bottom) {
+              targetTrackId = el.getAttribute('data-track-id') || origTrackId;
+              break;
+            }
           }
         }
+        moveClip(clip.id, targetTrackId, Math.max(0, newStartTime));
       }
-
-      moveClip(clip.id, targetTrackId, Math.max(0, newStartTime));
     };
 
     const onUp = () => {
@@ -150,11 +200,12 @@ export function Clip({ clip, trackColor, pixelsPerSecond }: ClipProps) {
 
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
-  }, [clip.id, clip.startTime, clip.trackId, selectClip, moveClip, pixelsPerSecond]);
+  }, [clip.id, clip.startTime, clip.trackId, clip.groupId, selectClip, moveClip, moveGroupClips, pixelsPerSecond]);
 
   const handleTrimLeft = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    if (isEffectivelyLocked) return;
     selectClip(clip.id);
 
     const startX = e.clientX;
@@ -196,6 +247,7 @@ export function Clip({ clip, trackColor, pixelsPerSecond }: ClipProps) {
   const handleTrimRight = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    if (isEffectivelyLocked) return;
     selectClip(clip.id);
 
     const startX = e.clientX;
@@ -242,9 +294,13 @@ export function Clip({ clip, trackColor, pixelsPerSecond }: ClipProps) {
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    selectClip(clip.id);
+    if (isEffectivelyLocked) return;
+    // Preserve multi-selection so Group option works; only select if not already selected
+    if (!selectedClipIds.includes(clip.id)) {
+      selectClip(clip.id);
+    }
     setContextMenu({ x: e.clientX, y: e.clientY });
-  }, [clip.id, selectClip]);
+  }, [clip.id, selectClip, isEffectivelyLocked, selectedClipIds]);
 
   const isAudio = asset?.type === 'audio';
   const isTransition = !!clip.transitionData;
@@ -252,14 +308,16 @@ export function Clip({ clip, trackColor, pixelsPerSecond }: ClipProps) {
   return (
     <>
       <div
-        className={`absolute top-1 bottom-1 rounded-lg cursor-grab active:cursor-grabbing select-none overflow-hidden transition-shadow ${
+        className={`absolute top-1 bottom-1 rounded-lg select-none overflow-hidden transition-shadow ${
+          isEffectivelyLocked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'
+        } ${
           isSelected ? 'ring-2 ring-[var(--accent)]/70 shadow-lg' : 'hover:brightness-110'
         }`}
         style={{
           left,
           width: Math.max(width, 4),
           backgroundColor: isTransition ? '#1e1e2e' : trackColor,
-          opacity: clip.locked ? 0.6 : clip.visible ? 1 : 0.3,
+          opacity: isEffectivelyLocked ? 0.5 : clip.visible ? 1 : 0.3,
         }}
         onMouseDown={handleMouseDown}
         onContextMenu={handleContextMenu}
@@ -289,16 +347,29 @@ export function Clip({ clip, trackColor, pixelsPerSecond }: ClipProps) {
           </div>
         )}
 
-        {/* Audio waveform placeholder */}
+        {/* Audio waveform — real peaks when decoded, sine placeholder while loading */}
         {isAudio && (
-          <div className="absolute inset-0 flex items-center px-1 opacity-30">
-            {Array.from({ length: Math.max(1, Math.floor(width / 3)) }).map((_, i) => (
-              <div
-                key={i}
-                className="w-0.5 mx-px bg-white rounded-full"
-                style={{ height: `${20 + Math.sin(i * 0.7) * 30 + Math.sin(i * 1.3) * 20}%` }}
+          <div className="absolute inset-0 overflow-hidden">
+            {waveform ? (
+              <canvas
+                ref={waveCanvasRef}
+                className="w-full h-full"
+                width={Math.max(1, Math.floor(width))}
+                height={48}
+                style={{ imageRendering: 'pixelated' }}
               />
-            ))}
+            ) : (
+              /* Sine-wave placeholder while audio is being decoded */
+              <div className="absolute inset-0 flex items-center px-1 opacity-30">
+                {Array.from({ length: Math.max(1, Math.floor(width / 3)) }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="w-0.5 mx-px bg-white rounded-full"
+                    style={{ height: `${20 + Math.sin(i * 0.7) * 30 + Math.sin(i * 1.3) * 20}%` }}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -316,6 +387,14 @@ export function Clip({ clip, trackColor, pixelsPerSecond }: ClipProps) {
           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-white/50 pointer-events-none z-10">
             {clip.duration.toFixed(1)}s
           </span>
+        )}
+
+        {/* Group color stripe */}
+        {groupColor && (
+          <div
+            className="absolute top-0 left-0 right-0 h-[3px] z-20 rounded-t-lg"
+            style={{ backgroundColor: groupColor }}
+          />
         )}
 
         {/* Lock indicator */}

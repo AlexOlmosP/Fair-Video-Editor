@@ -72,8 +72,9 @@ export class FFmpegWorker {
     return data as Uint8Array;
   }
 
-  async exec(args: string[]): Promise<void> {
+  async exec(args: string[], signal?: AbortSignal): Promise<void> {
     await this.ensureLoaded();
+    if (signal?.aborted) throw new DOMException('Export cancelled', 'AbortError');
     await this.ffmpeg.exec(args);
   }
 

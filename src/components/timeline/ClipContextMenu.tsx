@@ -37,18 +37,34 @@ export function ClipContextMenu({ clipId, x, y, onClose }: ClipContextMenuProps)
   };
 
   const handleDelete = () => {
-    useTimelineStore.getState().removeClip(clipId);
+    const { clips, removeClip, removeGroup } = useTimelineStore.getState();
+    const clip = clips[clipId];
+    if (clip?.groupId) {
+      removeGroup(clip.groupId);
+    } else {
+      removeClip(clipId);
+    }
     onClose();
   };
 
   const handleDuplicate = () => {
-    const clip = useTimelineStore.getState().clips[clipId];
+    const { clips, addClip } = useTimelineStore.getState();
+    const clip = clips[clipId];
     if (!clip) return;
-    const { id: _, ...clipData } = clip;
-    useTimelineStore.getState().addClip({
-      ...clipData,
-      startTime: clip.startTime + clip.duration,
-    });
+
+    if (clip.groupId) {
+      // Duplicate all clips in the group
+      const groupClips = Object.values(clips).filter((c) => c.groupId === clip.groupId);
+      const maxEnd = Math.max(...groupClips.map((c) => c.startTime + c.duration));
+      const offset = maxEnd - Math.min(...groupClips.map((c) => c.startTime));
+      for (const gc of groupClips) {
+        const { id: _, ...clipData } = gc;
+        addClip({ ...clipData, startTime: gc.startTime + offset });
+      }
+    } else {
+      const { id: _, ...clipData } = clip;
+      addClip({ ...clipData, startTime: clip.startTime + clip.duration });
+    }
     onClose();
   };
 
@@ -71,17 +87,39 @@ export function ClipContextMenu({ clipId, x, y, onClose }: ClipContextMenuProps)
     onClose();
   };
 
-  const clip = useTimelineStore.getState().clips[clipId];
+  const handleGroup = () => {
+    const { selectedClipIds, groupClips } = useTimelineStore.getState();
+    if (selectedClipIds.length > 1) {
+      groupClips(selectedClipIds);
+    }
+    onClose();
+  };
 
-  const menuItems = [
+  const handleUngroup = () => {
+    const clip = useTimelineStore.getState().clips[clipId];
+    if (clip?.groupId) {
+      useTimelineStore.getState().ungroupClips(clip.groupId);
+    }
+    onClose();
+  };
+
+  const clip = useTimelineStore.getState().clips[clipId];
+  const selectedClipIds = useTimelineStore.getState().selectedClipIds;
+  const isGrouped = !!clip?.groupId;
+  const canGroup = selectedClipIds.length > 1;
+
+  const menuItems: Array<{ label: string; shortcut?: string; action?: () => void; danger?: boolean }> = [
     { label: 'Split at Playhead', shortcut: 'Ctrl+S', action: handleSplit },
     { label: 'Freeze Frame (3s)', shortcut: '', action: handleFreezeFrame },
     { label: 'Duplicate', shortcut: '', action: handleDuplicate },
     { label: 'divider' },
+    ...(canGroup && !isGrouped ? [{ label: 'Group', shortcut: '', action: handleGroup }] : []),
+    ...(isGrouped ? [{ label: 'Ungroup', shortcut: '', action: handleUngroup }] : []),
+    ...((canGroup && !isGrouped) || isGrouped ? [{ label: 'divider' }] : []),
     { label: clip?.locked ? 'Unlock' : 'Lock', shortcut: '', action: handleToggleLock },
     { label: clip?.visible ? 'Hide' : 'Show', shortcut: '', action: handleToggleVisibility },
     { label: 'divider' },
-    { label: 'Delete', shortcut: 'Del', action: handleDelete, danger: true },
+    { label: isGrouped ? 'Delete Group' : 'Delete', shortcut: 'Del', action: handleDelete, danger: true },
   ];
 
   return (
@@ -98,7 +136,7 @@ export function ClipContextMenu({ clipId, x, y, onClose }: ClipContextMenuProps)
             key={item.label}
             onClick={item.action}
             className={`w-full px-3 py-2 text-sm text-left flex items-center justify-between transition-colors rounded-lg mx-1 btn-press ${
-              (item as { danger?: boolean }).danger
+              item.danger
                 ? 'text-red-400 hover:bg-red-500/10'
                 : 'text-[var(--text-secondary)] hover:bg-[var(--hover-bg)]'
             }`}

@@ -2,11 +2,13 @@
 
 import React from 'react';
 import { usePlayback } from '@/hooks/usePlayback';
+import { useTimelineStore } from '@/store/useTimelineStore';
 import { secondsToDisplay } from '@/lib/time';
 
 export function PreviewControls() {
   const { playheadTime, isPlaying, duration, togglePlayback, skipBackward, skipForward } =
     usePlayback();
+  const shuttleSpeed = useTimelineStore((s) => s.shuttleSpeed);
 
   return (
     <div className="flex items-center gap-3 flex-shrink-0 glass-panel rounded-full px-4 py-2">
@@ -14,6 +16,13 @@ export function PreviewControls() {
       <span className="text-[11px] text-[var(--text-muted)] font-mono w-[72px] text-right tabular-nums tracking-tight">
         {secondsToDisplay(playheadTime)}
       </span>
+
+      {/* Shuttle Speed Indicator */}
+      {shuttleSpeed !== 0 && (
+        <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-400 tabular-nums">
+          {shuttleSpeed < 0 ? `◀ ${Math.abs(shuttleSpeed)}×` : `▶ ${shuttleSpeed}×`}
+        </span>
+      )}
 
       {/* Transport Controls */}
       <div className="flex items-center gap-0.5">

@@ -10,7 +10,8 @@ import { ASPECT_RATIO_PRESETS } from '@/lib/constants';
 import { computeInternalTime } from '@/engine/animation/speedMapping';
 import { processBackgroundRemoval } from '@/engine/processors/BackgroundRemover';
 import { interpolateProperty } from '@/engine/animation/interpolate';
-import type { Clip } from '@/store/types';
+import { wrapText } from '@/lib/textLayout';
+import type { Clip, ColorCorrectionParams } from '@/store/types';
 
 // Cache for background-removed frames (keyed by clipId)
 const bgRemoveCache = new Map<string, { imageData: ImageData; timestamp: number }>();
@@ -67,7 +68,9 @@ export function PreviewPlayer() {
     const sy = ch / projectH;
 
     const state = useTimelineStore.getState();
-    const { playheadTime, clips, trackOrder, isPlaying } = state;
+    const { playheadTime, clips, trackOrder, isPlaying, shuttleSpeed, tracks, isCropMode } = state;
+    // During shuttle scrubbing, keep HTML video elements paused and just seek them
+    const driveNativePlayback = isPlaying && shuttleSpeed === 0;
     const { elements } = useMediaStore.getState();
     const { safeAreaRatio } = useProjectStore.getState();
 
@@ -88,6 +91,7 @@ export function PreviewPlayer() {
         .filter(
           (c) =>
             c.visible &&
+            tracks[c.trackId]?.visible !== false &&
             playheadTime >= c.startTime &&
             playheadTime < c.startTime + c.duration
         )
@@ -130,6 +134,8 @@ export function PreviewPlayer() {
         // --- Video sync ---
         if (source instanceof HTMLVideoElement) {
           activeVideoAssets.add(clip.assetId);
+          // Apply track mute
+          source.muted = tracks[clip.trackId]?.muted ?? false;
           const internalTime = clip.freezeFrame
             ? clip.freezeFrame.sourceTime
             : computeInternalTime(clip, playheadTime);
@@ -139,7 +145,7 @@ export function PreviewPlayer() {
             if (!source.seeking && Math.abs(source.currentTime - internalTime) > 0.05) {
               source.currentTime = internalTime;
             }
-          } else if (isPlaying) {
+          } else if (driveNativePlayback) {
             const clampedSpeed = Math.max(0.0625, Math.min(16, clip.speed));
             if (source.paused) {
               source.currentTime = internalTime;
@@ -176,7 +182,8 @@ export function PreviewPlayer() {
         ctx.save();
         ctx.globalAlpha = animOpacity;
 
-        const filterStr = buildCanvasFilter(clip.filters);
+        const cc = clip.colorCorrection ?? null;
+        const filterStr = buildCanvasFilter(clip.filters, cc);
         if (filterStr) {
           ctx.filter = filterStr;
         }
@@ -197,7 +204,8 @@ export function PreviewPlayer() {
         const drawW = srcW * scale * sx;
         const drawH = srcH * scale * sy;
 
-        // Handle background removal
+        // Determine pixel source (bg-remove may swap to a processed canvas)
+        let pixelSource: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement = source;
         if (clip.filters.includes('bg-remove') && !bgProcessingRef.current.has(clip.id)) {
           const cached = bgRemoveCache.get(clip.id);
           if (cached && Date.now() - cached.timestamp < 150) {
@@ -206,9 +214,8 @@ export function PreviewPlayer() {
             tmpCanvas.height = cached.imageData.height;
             const tmpCtx = tmpCanvas.getContext('2d')!;
             tmpCtx.putImageData(cached.imageData, 0, 0);
-            ctx.drawImage(tmpCanvas, -drawW / 2, -drawH / 2, drawW, drawH);
+            pixelSource = tmpCanvas;
           } else {
-            ctx.drawImage(source, -drawW / 2, -drawH / 2, drawW, drawH);
             bgProcessingRef.current.add(clip.id);
             processBackgroundRemoval(source, srcW, srcH).then((result) => {
               bgProcessingRef.current.delete(clip.id);
@@ -222,8 +229,29 @@ export function PreviewPlayer() {
               bgProcessingRef.current.delete(clip.id);
             });
           }
+        }
+
+        // Apply pixel-level color correction (temperature, tint, HSL) when needed
+        if (cc && hasNonzeroPixelCorrection(cc)) {
+          pixelSource = applyPixelColorCorrection(pixelSource, drawW, drawH, cc);
+        }
+
+        // Apply crop if set
+        const crop = clip.crop;
+        if (crop && (crop.top > 0 || crop.right > 0 || crop.bottom > 0 || crop.left > 0)) {
+          const psW = ('videoWidth' in pixelSource ? (pixelSource as HTMLVideoElement).videoWidth : (pixelSource as HTMLImageElement | HTMLCanvasElement).width) || srcW;
+          const psH = ('videoHeight' in pixelSource ? (pixelSource as HTMLVideoElement).videoHeight : (pixelSource as HTMLImageElement | HTMLCanvasElement).height) || srcH;
+          const cropL = (crop.left / 100) * psW;
+          const cropR = (crop.right / 100) * psW;
+          const cropT = (crop.top / 100) * psH;
+          const cropB = (crop.bottom / 100) * psH;
+          const cSrcW = psW - cropL - cropR;
+          const cSrcH = psH - cropT - cropB;
+          const cDrawW = drawW * (cSrcW / psW);
+          const cDrawH = drawH * (cSrcH / psH);
+          ctx.drawImage(pixelSource, cropL, cropT, cSrcW, cSrcH, -cDrawW / 2, -cDrawH / 2, cDrawW, cDrawH);
         } else {
-          ctx.drawImage(source, -drawW / 2, -drawH / 2, drawW, drawH);
+          ctx.drawImage(pixelSource, -drawW / 2, -drawH / 2, drawW, drawH);
         }
         ctx.restore();
       }
@@ -244,6 +272,7 @@ export function PreviewPlayer() {
     const activeTextClips = Object.values(clips).filter(
       (c) =>
         c.visible &&
+        tracks[c.trackId]?.visible !== false &&
         c.textData &&
         playheadTime >= c.startTime &&
         playheadTime < c.startTime + c.duration
@@ -273,15 +302,24 @@ export function PreviewPlayer() {
           Number.isFinite(animScaleY) ? animScaleY : 1
         );
 
-        // Measure text at base size
+        // Set font and compute wrapped lines (measured before scale transform)
         const fontSize = Math.max(1, Math.round((td.fontSize || 48) * sy));
-        ctx.font = `bold ${fontSize}px ${td.fontFamily || 'system-ui'}`;
+        const fontStr = `bold ${fontSize}px ${td.fontFamily || 'system-ui'}`;
+        ctx.font = fontStr;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
-        const metrics = ctx.measureText(td.text);
-        const textW = metrics.width + 24 * sx;
-        const textH = (td.fontSize + 16) * sy;
+        // Wrap at 80% of canvas width (in canvas px, pre-scale)
+        const maxLineWidth = cw * 0.8;
+        const lines = wrapText(ctx, td.text, maxLineWidth);
+        const lineH = fontSize * 1.35;
+        const totalTextH = lines.length * lineH;
+
+        // Max line width for background box
+        let maxLW = 0;
+        for (const line of lines) maxLW = Math.max(maxLW, ctx.measureText(line).width);
+        const textW = maxLW + 24 * sx;
+        const textH = totalTextH + 12 * sy;
 
         if (td.backgroundColor && textW > 0 && textH > 0) {
           ctx.fillStyle = td.backgroundColor;
@@ -291,14 +329,16 @@ export function PreviewPlayer() {
           ctx.fill();
         }
 
-        if (td.strokeColor && td.strokeWidth) {
-          ctx.strokeStyle = td.strokeColor;
-          ctx.lineWidth = td.strokeWidth * sx;
-          ctx.strokeText(td.text, 0, 0);
-        }
-
         ctx.fillStyle = td.color || '#ffffff';
-        ctx.fillText(td.text, 0, 0);
+        for (let i = 0; i < lines.length; i++) {
+          const lineY = (i - (lines.length - 1) / 2) * lineH;
+          if (td.strokeColor && td.strokeWidth) {
+            ctx.strokeStyle = td.strokeColor;
+            ctx.lineWidth = td.strokeWidth * sx;
+            ctx.strokeText(lines[i], 0, lineY);
+          }
+          ctx.fillText(lines[i], 0, lineY);
+        }
         ctx.restore();
       } catch {
         // Skip this text clip if rendering fails
@@ -316,13 +356,17 @@ export function PreviewPlayer() {
       let drawW: number, drawH: number;
 
       if (clip.textData) {
-        // For text clips, compute bounds from text metrics
+        // For text clips, compute bounds using the same word-wrap logic as rendering
         const td = clip.textData;
         ctx.save();
-        ctx.font = `bold ${Math.round(td.fontSize * sy)}px ${td.fontFamily}`;
-        const metrics = ctx.measureText(td.text);
-        drawW = (metrics.width / sy + 24) * clip.scale.x * sx;
-        drawH = (td.fontSize + 16) * clip.scale.y * sy;
+        const selFontSize = Math.max(1, Math.round(td.fontSize * sy));
+        ctx.font = `bold ${selFontSize}px ${td.fontFamily || 'system-ui'}`;
+        const selLines = wrapText(ctx, td.text, cw * 0.8);
+        const selLineH = selFontSize * 1.35;
+        let selMaxW = 0;
+        for (const line of selLines) selMaxW = Math.max(selMaxW, ctx.measureText(line).width);
+        drawW = (selMaxW + 24 * sx) * clip.scale.x;
+        drawH = (selLines.length * selLineH + 12 * sy) * clip.scale.y;
         ctx.restore();
       } else {
         const source = elements[clip.assetId];
@@ -339,27 +383,65 @@ export function PreviewPlayer() {
       const clipCx = (projectW / 2 + animPX) * sx;
       const clipCy = (projectH / 2 + animPY) * sy;
 
-      ctx.save();
-      ctx.strokeStyle = '#3b82f6';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([]);
-      ctx.strokeRect(clipCx - drawW / 2, clipCy - drawH / 2, drawW, drawH);
+      if (isCropMode && !clip.textData) {
+        // ── Crop overlay ─────────────────────────────────────────
+        const crop = clip.crop ?? { top: 0, right: 0, bottom: 0, left: 0 };
+        const cropL = clipCx - drawW / 2 + (crop.left / 100) * drawW;
+        const cropR = clipCx + drawW / 2 - (crop.right / 100) * drawW;
+        const cropT = clipCy - drawH / 2 + (crop.top / 100) * drawH;
+        const cropB = clipCy + drawH / 2 - (crop.bottom / 100) * drawH;
 
-      const hs = 12;
-      const corners = [
-        [clipCx - drawW / 2, clipCy - drawH / 2],
-        [clipCx + drawW / 2, clipCy - drawH / 2],
-        [clipCx - drawW / 2, clipCy + drawH / 2],
-        [clipCx + drawW / 2, clipCy + drawH / 2],
-      ];
-      for (const [hx, hy] of corners) {
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(hx - hs / 2, hy - hs / 2, hs, hs);
+        ctx.save();
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        if (crop.top > 0)    ctx.fillRect(clipCx - drawW / 2, clipCy - drawH / 2, drawW, (crop.top / 100) * drawH);
+        if (crop.bottom > 0) ctx.fillRect(clipCx - drawW / 2, cropB, drawW, (crop.bottom / 100) * drawH);
+        if (crop.left > 0)   ctx.fillRect(clipCx - drawW / 2, cropT, (crop.left / 100) * drawW, cropB - cropT);
+        if (crop.right > 0)  ctx.fillRect(cropR, cropT, (crop.right / 100) * drawW, cropB - cropT);
+
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([]);
+        ctx.strokeRect(cropL, cropT, cropR - cropL, cropB - cropT);
+
+        const hs = 10;
+        const midX = (cropL + cropR) / 2;
+        const midY = (cropT + cropB) / 2;
+        for (const [hx, hy] of [
+          [cropL, cropT], [midX, cropT], [cropR, cropT],
+          [cropR, midY], [cropR, cropB], [midX, cropB],
+          [cropL, cropB], [cropL, midY],
+        ]) {
+          ctx.fillStyle = '#f59e0b';
+          ctx.fillRect(hx - hs / 2, hy - hs / 2, hs, hs);
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(hx - hs / 2, hy - hs / 2, hs, hs);
+        }
+        ctx.restore();
+      } else {
+        // ── Normal transform handles ─────────────────────────────
+        ctx.save();
         ctx.strokeStyle = '#3b82f6';
         ctx.lineWidth = 2;
-        ctx.strokeRect(hx - hs / 2, hy - hs / 2, hs, hs);
+        ctx.setLineDash([]);
+        ctx.strokeRect(clipCx - drawW / 2, clipCy - drawH / 2, drawW, drawH);
+
+        const hs = 12;
+        const corners = [
+          [clipCx - drawW / 2, clipCy - drawH / 2],
+          [clipCx + drawW / 2, clipCy - drawH / 2],
+          [clipCx - drawW / 2, clipCy + drawH / 2],
+          [clipCx + drawW / 2, clipCy + drawH / 2],
+        ];
+        for (const [hx, hy] of corners) {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(hx - hs / 2, hy - hs / 2, hs, hs);
+          ctx.strokeStyle = '#3b82f6';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(hx - hs / 2, hy - hs / 2, hs, hs);
+        }
+        ctx.restore();
       }
-      ctx.restore();
     }
 
     // Draw safe area overlay
@@ -403,16 +485,23 @@ export function PreviewPlayer() {
       const store = useTimelineStore.getState();
 
       if (store.isPlaying) {
-        // Advance playhead during playback — full 60fps
+        // Advance playhead — full 60fps; shuttleSpeed scales direction & rate
         const delta = (now - lastFrameTimeRef.current) / 1000;
-        const newTime = store.playheadTime + delta;
+        const speed = store.shuttleSpeed !== 0 ? store.shuttleSpeed : 1;
+        const newTime = store.playheadTime + delta * speed;
         const maxDuration = store.duration;
 
-        if (newTime >= maxDuration && maxDuration > 0) {
+        if (speed < 0 && newTime <= 0) {
+          // Backward shuttle hit beginning
+          store.setPlayheadTime(0);
+          store.setIsPlaying(false);
+          store.setShuttleSpeed(0);
+        } else if (newTime >= maxDuration && maxDuration > 0) {
           store.setPlayheadTime(maxDuration);
           store.setIsPlaying(false);
+          store.setShuttleSpeed(0);
         } else {
-          store.setPlayheadTime(newTime);
+          store.setPlayheadTime(Math.max(0, newTime));
         }
         lastFrameTimeRef.current = now;
         renderFrame();
@@ -531,25 +620,164 @@ function drawSafeAreaOverlay(
   ctx.restore();
 }
 
-/** Map effect IDs to Canvas 2D filter strings */
-function buildCanvasFilter(filters: string[]): string {
-  if (filters.length === 0) return '';
+// ─── Color Correction Helpers ─────────────────────────────────────────────
 
+/**
+ * Build the CSS filter string for a clip.
+ * Brightness/contrast/saturation from ColorCorrectionParams are hardware-
+ * accelerated via CSS filter. Temperature/tint/HSL need pixel manipulation and
+ * are handled in applyPixelColorCorrection.
+ */
+function buildCanvasFilter(filters: string[], cc?: ColorCorrectionParams | null): string {
   const parts: string[] = [];
+
+  if (cc) {
+    if (cc.brightness !== 0) parts.push(`brightness(${Math.max(0, 1 + cc.brightness / 100).toFixed(3)})`);
+    if (cc.contrast   !== 0) parts.push(`contrast(${Math.max(0, 1 + cc.contrast   / 100).toFixed(3)})`);
+    if (cc.saturation !== 0) parts.push(`saturate(${Math.max(0, 1 + cc.saturation / 100).toFixed(3)})`);
+  }
+
   for (const f of filters) {
     switch (f) {
       case 'brightness': parts.push('brightness(1.3)'); break;
-      case 'contrast': parts.push('contrast(1.4)'); break;
-      case 'saturate': parts.push('saturate(1.5)'); break;
-      case 'blur': parts.push('blur(3px)'); break;
-      case 'sharpen': parts.push('contrast(1.1) brightness(1.05)'); break;
-      case 'grayscale': parts.push('grayscale(1)'); break;
-      case 'sepia': parts.push('sepia(1)'); break;
-      case 'invert': parts.push('invert(1)'); break;
+      case 'contrast':   parts.push('contrast(1.4)'); break;
+      case 'saturate':   parts.push('saturate(1.5)'); break;
+      case 'blur':       parts.push('blur(3px)'); break;
+      case 'sharpen':    parts.push('contrast(1.1) brightness(1.05)'); break;
+      case 'grayscale':  parts.push('grayscale(1)'); break;
+      case 'sepia':      parts.push('sepia(1)'); break;
+      case 'invert':     parts.push('invert(1)'); break;
       case 'hue-rotate': parts.push('hue-rotate(90deg)'); break;
-      case 'chroma-green': parts.push('hue-rotate(0deg)'); break;
-      case 'chroma-blue': parts.push('hue-rotate(0deg)'); break;
     }
   }
   return parts.join(' ');
+}
+
+/** Returns true when any property requiring pixel manipulation is non-zero. */
+function hasNonzeroPixelCorrection(cc: ColorCorrectionParams): boolean {
+  if (cc.temperature !== 0 || cc.tint !== 0) return true;
+  return Object.values(cc.hsl).some(
+    (ch) => ch.hue !== 0 || ch.saturation !== 0 || ch.luminance !== 0
+  );
+}
+
+// ─── Pixel-level color manipulation ───────────────────────────────────────
+
+function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
+  const rn = r / 255, gn = g / 255, bn = b / 255;
+  const max = Math.max(rn, gn, bn), min = Math.min(rn, gn, bn);
+  const l = (max + min) / 2;
+  if (max === min) return [0, 0, l];
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h: number;
+  if (max === rn)      h = ((gn - bn) / d + (gn < bn ? 6 : 0)) / 6;
+  else if (max === gn) h = ((bn - rn) / d + 2) / 6;
+  else                 h = ((rn - gn) / d + 4) / 6;
+  return [h * 360, s, l];
+}
+
+function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+  h /= 360;
+  if (s === 0) { const v = Math.round(l * 255); return [v, v, v]; }
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  const hue2rgb = (p: number, q: number, t: number) => {
+    if (t < 0) t += 1; if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 0.5)   return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  return [
+    Math.round(hue2rgb(p, q, h + 1 / 3) * 255),
+    Math.round(hue2rgb(p, q, h)         * 255),
+    Math.round(hue2rgb(p, q, h - 1 / 3) * 255),
+  ];
+}
+
+// Hue channel centers and half-widths used for per-channel HSL masking
+const HSL_CFG: Record<string, { center: number; range: number }> = {
+  red:     { center: 0,   range: 30 },
+  orange:  { center: 30,  range: 25 },
+  yellow:  { center: 60,  range: 25 },
+  green:   { center: 120, range: 45 },
+  cyan:    { center: 180, range: 25 },
+  blue:    { center: 240, range: 40 },
+  purple:  { center: 280, range: 30 },
+  magenta: { center: 330, range: 30 },
+};
+
+/**
+ * Apply temperature, tint, and per-channel HSL adjustments via pixel manipulation.
+ * The offscreen canvas is capped at 640 px wide for real-time performance;
+ * ctx.drawImage at the call site stretches it back to drawW×drawH automatically.
+ */
+function applyPixelColorCorrection(
+  source: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement,
+  drawW: number,
+  drawH: number,
+  cc: ColorCorrectionParams
+): HTMLCanvasElement {
+  const MAX_W = 640;
+  const pxScale = drawW > MAX_W ? MAX_W / drawW : 1;
+  const w = Math.max(1, Math.round(drawW * pxScale));
+  const h = Math.max(1, Math.round(drawH * pxScale));
+
+  const offscreen = document.createElement('canvas');
+  offscreen.width  = w;
+  offscreen.height = h;
+  const offCtx = offscreen.getContext('2d')!;
+  offCtx.drawImage(source, 0, 0, w, h);
+
+  const imageData = offCtx.getImageData(0, 0, w, h);
+  const data = imageData.data;
+
+  const tempScale = cc.temperature * 2.55; // ±100 → ±255
+  const tintScale = cc.tint * 2.55;
+  const hasTemp = cc.temperature !== 0;
+  const hasTint = cc.tint !== 0;
+  const hslEntries = Object.entries(cc.hsl) as [string, { hue: number; saturation: number; luminance: number }][];
+  const hasHsl = hslEntries.some(([, a]) => a.hue !== 0 || a.saturation !== 0 || a.luminance !== 0);
+
+  for (let i = 0; i < data.length; i += 4) {
+    let r = data[i], g = data[i + 1], b = data[i + 2];
+
+    // Temperature: warm (+) shifts R up / B down; cool (−) the reverse
+    if (hasTemp) {
+      r = Math.max(0, Math.min(255, r + tempScale));
+      b = Math.max(0, Math.min(255, b - tempScale));
+    }
+
+    // Tint: positive = magenta (subtract green); negative = green (add green)
+    if (hasTint) {
+      g = Math.max(0, Math.min(255, g - tintScale));
+    }
+
+    // Per-channel HSL adjustments
+    if (hasHsl) {
+      let [hh, s, l] = rgbToHsl(r, g, b);
+      let dH = 0, dS = 0, dL = 0;
+      for (const [name, adj] of hslEntries) {
+        if (adj.hue === 0 && adj.saturation === 0 && adj.luminance === 0) continue;
+        const cfg = HSL_CFG[name];
+        let diff = Math.abs(hh - cfg.center);
+        if (diff > 180) diff = 360 - diff;
+        const wt = Math.max(0, 1 - diff / cfg.range);
+        if (wt <= 0) continue;
+        dH += adj.hue        * wt * 0.3;  // ±100 → ±30° hue shift
+        dS += adj.saturation * wt / 100;  // ±100 → ±1 saturation shift
+        dL += adj.luminance  * wt / 200;  // ±100 → ±0.5 luminance shift
+      }
+      hh = (hh + dH + 360) % 360;
+      s  = Math.max(0, Math.min(1, s + dS));
+      l  = Math.max(0, Math.min(1, l + dL));
+      [r, g, b] = hslToRgb(hh, s, l);
+    }
+
+    data[i] = r; data[i + 1] = g; data[i + 2] = b;
+  }
+
+  offCtx.putImageData(imageData, 0, 0);
+  return offscreen;
 }

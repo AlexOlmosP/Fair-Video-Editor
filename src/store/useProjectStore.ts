@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { v4 as uuid } from 'uuid';
-import type { MediaAsset, ProjectSettings } from './types';
+import type { MediaAsset, ProjectSettings, ProjectSnapshot } from './types';
 import { DEFAULT_PROJECT_SETTINGS } from './types';
+import { useHistoryStore } from './useHistoryStore';
 
 interface ProjectState {
   settings: ProjectSettings;
@@ -15,6 +16,10 @@ interface ProjectState {
   getAsset: (assetId: string) => MediaAsset | undefined;
   setSafeAreaRatio: (ratio: string | null) => void;
   setAspectRatioLocked: (locked: boolean) => void;
+
+  // History helpers (used by undo/redo to restore state)
+  _snapshotProject: () => ProjectSnapshot;
+  _restoreProject: (snapshot: ProjectSnapshot) => void;
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
@@ -23,8 +28,25 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   safeAreaRatio: null,
   aspectRatioLocked: true,
 
+  // ─── History Helpers ─────────────────────────────────────────
+
+  _snapshotProject: () => ({ settings: { ...get().settings } }),
+
+  _restoreProject: (snapshot) => {
+    set({ settings: snapshot.settings });
+  },
+
+  // ─── Mutations ───────────────────────────────────────────────
+
   updateSettings: (updates) => {
+    const before = get()._snapshotProject();
     set((s) => ({ settings: { ...s.settings, ...updates } }));
+    useHistoryStore.getState().pushAction({
+      type: 'updateSettings',
+      timestamp: Date.now(),
+      before: { project: before },
+      after: { project: get()._snapshotProject() },
+    });
   },
 
   addAsset: (assetData) => {

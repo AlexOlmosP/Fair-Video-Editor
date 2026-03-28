@@ -28,10 +28,11 @@ export const DEFAULT_TRACKS: { type: TrackType; name: string }[] = [
 ];
 
 export const ASPECT_RATIO_PRESETS = [
-  { label: '16:9', ratio: 16 / 9 },
-  { label: '9:16', ratio: 9 / 16 },
-  { label: '4:5', ratio: 4 / 5 },
-  { label: '1:1', ratio: 1 },
+  { label: '16:9', ratio: 16 / 9, width: 1920, height: 1080 },
+  { label: '9:16', ratio: 9 / 16, width: 1080, height: 1920 },
+  { label: '1:1',  ratio: 1,       width: 1080, height: 1080 },
+  { label: '4:5',  ratio: 4 / 5,  width: 1080, height: 1350 },
+  { label: '4:3',  ratio: 4 / 3,  width: 1440, height: 1080 },
 ] as const;
 
 /**
@@ -59,3 +60,11 @@ export function getExportDimensions(
 }
 
 export const ANIMATION_SUBLANE_HEIGHT = 24;
+
+export const LAYOUT_PRESETS = {
+  Default:  { leftPanelWidth: 328, rightPanelWidth: 260, timelineHeight: 300 },
+  Timeline: { leftPanelWidth: 280, rightPanelWidth: 220, timelineHeight: 450 },
+  Preview:  { leftPanelWidth: 260, rightPanelWidth: 260, timelineHeight: 200 },
+} as const;
+
+export type LayoutPresetName = keyof typeof LAYOUT_PRESETS;

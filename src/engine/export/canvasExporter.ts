@@ -60,6 +60,7 @@ interface ExportOptions {
   onProgress: (stage: string, frame: number, total: number) => void;
   writeFrame: (name: string, data: Blob) => Promise<void>;
   deleteFrame?: (name: string) => Promise<void>;
+  signal?: AbortSignal;
 }
 
 /**
@@ -279,7 +280,7 @@ export async function renderExportFrames(opts: ExportOptions): Promise<number> {
   const {
     width, height, projectWidth, projectHeight, frameRate, backgroundColor,
     clips, tracks, trackOrder, elements,
-    totalDuration, onProgress, writeFrame,
+    totalDuration, onProgress, writeFrame, signal,
   } = opts;
 
   const canvas = document.createElement('canvas');
@@ -303,6 +304,8 @@ export async function renderExportFrames(opts: ExportOptions): Promise<number> {
   const lastSeekedTime = new Map<string, number>();
 
   for (let i = 0; i < totalFrames; i++) {
+    if (signal?.aborted) throw new DOMException('Export cancelled', 'AbortError');
+
     const time = i / frameRate;
     onProgress('Rendering frames...', i, totalFrames);
 

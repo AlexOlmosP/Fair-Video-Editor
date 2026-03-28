@@ -4,19 +4,33 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useHistoryStore } from '@/store/useHistoryStore';
 import { useProjectStore } from '@/store/useProjectStore';
 import { ExportModal } from '../export/ExportModal';
+import { ShortcutsModal } from './ShortcutsModal';
 import { saveProject, loadProject, listProjects, deleteProject, type ProjectListItem } from '@/lib/projectStorage';
+import { ASPECT_RATIO_PRESETS, LAYOUT_PRESETS, type LayoutPresetName } from '@/lib/constants';
 
 interface ToolbarProps {
   onToggleProperties: () => void;
   showProperties: boolean;
+  layoutPreset: LayoutPresetName | null;
+  onLayoutPresetChange: (preset: LayoutPresetName) => void;
 }
 
-export function Toolbar({ onToggleProperties, showProperties }: ToolbarProps) {
+export function Toolbar({ onToggleProperties, showProperties, layoutPreset, onLayoutPresetChange }: ToolbarProps) {
   const hasPast = useHistoryStore((s) => s.past.length > 0);
   const hasFuture = useHistoryStore((s) => s.future.length > 0);
   const projectName = useProjectStore((s) => s.settings.name);
+  const projectWidth = useProjectStore((s) => s.settings.width);
+  const projectHeight = useProjectStore((s) => s.settings.height);
+
+  const currentRatioLabel = (() => {
+    const match = ASPECT_RATIO_PRESETS.find(
+      (p) => p.width === projectWidth && p.height === projectHeight,
+    );
+    return match?.label ?? null;
+  })();
   const [showExport, setShowExport] = useState(false);
   const [showLoadModal, setShowLoadModal] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const [savedProjects, setSavedProjects] = useState<ProjectListItem[]>([]);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [loadingProject, setLoadingProject] = useState<string | null>(null);
@@ -68,6 +82,13 @@ export function Toolbar({ onToggleProperties, showProperties }: ToolbarProps) {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [handleSave]);
+
+  // Open shortcuts modal via '?' key (dispatched by useKeyboardShortcuts)
+  useEffect(() => {
+    const handler = () => setShowShortcuts(true);
+    window.addEventListener('editor-open-shortcuts', handler);
+    return () => window.removeEventListener('editor-open-shortcuts', handler);
+  }, []);
 
   const formatDate = (ts: number) => {
     const d = new Date(ts);
@@ -156,6 +177,50 @@ export function Toolbar({ onToggleProperties, showProperties }: ToolbarProps) {
           </button>
         </div>
 
+        <div className="w-px h-5 bg-[var(--border-color)]" />
+
+        {/* Aspect Ratio Selector */}
+        <div className="flex items-center gap-1">
+          {ASPECT_RATIO_PRESETS.map((preset) => {
+            const active = currentRatioLabel === preset.label;
+            return (
+              <button
+                key={preset.label}
+                onClick={() => useProjectStore.getState().updateSettings({ width: preset.width, height: preset.height })}
+                className={`px-2 py-1 rounded-lg text-[11px] font-medium btn-press transition-colors ${
+                  active
+                    ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
+                    : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--hover-bg)]'
+                }`}
+                title={`${preset.width}×${preset.height}`}
+              >
+                {preset.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="w-px h-5 bg-[var(--border-color)]" />
+
+        {/* Layout Presets */}
+        <div className="flex items-center gap-1">
+          <span className="text-[11px] text-[var(--text-muted)] mr-0.5">Layout</span>
+          {(Object.keys(LAYOUT_PRESETS) as LayoutPresetName[]).map((name) => (
+            <button
+              key={name}
+              onClick={() => onLayoutPresetChange(name)}
+              className={`px-2 py-1 rounded-lg text-[11px] font-medium btn-press transition-colors ${
+                layoutPreset === name
+                  ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
+                  : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--hover-bg)]'
+              }`}
+              title={name === 'Timeline' ? 'Timeline-focused layout' : name === 'Preview' ? 'Preview-focused layout' : 'Default layout'}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+
         <div className="flex-1" />
 
         {/* Toggle Properties Panel */}
@@ -166,6 +231,18 @@ export function Toolbar({ onToggleProperties, showProperties }: ToolbarProps) {
         >
           <svg className="w-[15px] h-[15px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+          </svg>
+        </button>
+
+        {/* Keyboard Shortcuts Reference */}
+        <button
+          onClick={() => setShowShortcuts(true)}
+          className="p-2 rounded-xl btn-icon-press hover:bg-[var(--hover-bg)] text-[var(--text-muted)]"
+          title="Keyboard Shortcuts (?)"
+        >
+          <svg className="w-[15px] h-[15px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round"
+              d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z" />
           </svg>
         </button>
 
@@ -184,6 +261,7 @@ export function Toolbar({ onToggleProperties, showProperties }: ToolbarProps) {
       </div>
 
       {showExport && <ExportModal onClose={() => setShowExport(false)} />}
+      {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
 
       {/* Load Project Modal */}
       {showLoadModal && (
