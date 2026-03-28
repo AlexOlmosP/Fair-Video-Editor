@@ -8,6 +8,11 @@ import { wrapText } from '@/lib/textLayout';
 
 interface CanvasInteractionProps {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  /**
+   * Optional separate canvas used for Canvas 2D text measurement.
+   * Provide this when canvasRef holds a WebGL canvas (which cannot return a 2D context).
+   */
+  measureCanvasRef?: React.RefObject<HTMLCanvasElement | null>;
 }
 
 type HandleType =
@@ -33,7 +38,10 @@ interface DragState {
   clipDrawH?: number;
 }
 
-export function CanvasInteraction({ canvasRef }: CanvasInteractionProps) {
+export function CanvasInteraction({ canvasRef, measureCanvasRef }: CanvasInteractionProps) {
+  // Resolve which canvas to use for Canvas 2D text measurement.
+  // When a WebGL canvas is the primary, measureCanvasRef points to a 2D overlay canvas.
+  const get2DCanvas = () => measureCanvasRef?.current ?? canvasRef.current;
   const overlayRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
   const [hoveredHandle, setHoveredHandle] = useState<HandleType | null>(null);
@@ -106,13 +114,13 @@ export function CanvasInteraction({ canvasRef }: CanvasInteractionProps) {
         if (clip.textData) {
           // For text clips, compute bounds using word-wrap to match the renderer
           const td = clip.textData;
-          const canvas = canvasRef.current;
-          if (canvas) {
-            const tmpCtx = canvas.getContext('2d');
+          const measCanvas = get2DCanvas();
+          if (measCanvas) {
+            const tmpCtx = measCanvas.getContext('2d');
             if (tmpCtx) {
               tmpCtx.save();
               tmpCtx.font = `bold ${td.fontSize}px ${td.fontFamily || 'system-ui'}`;
-              const maxLW = canvas.width * 0.8;
+              const maxLW = measCanvas.width * 0.8;
               const lines = wrapText(tmpCtx, td.text, maxLW);
               const lineH = td.fontSize * 1.35;
               let maxW = 0;
@@ -392,13 +400,13 @@ export function CanvasInteraction({ canvasRef }: CanvasInteractionProps) {
           let halfW = 0, halfH = 0;
           if (clip.textData) {
             const td = clip.textData;
-            const canvas = canvasRef.current;
-            if (canvas) {
-              const tmpCtx = canvas.getContext('2d');
+            const measCanvas2 = get2DCanvas();
+            if (measCanvas2) {
+              const tmpCtx = measCanvas2.getContext('2d');
               if (tmpCtx) {
                 tmpCtx.save();
                 tmpCtx.font = `bold ${td.fontSize}px ${td.fontFamily || 'system-ui'}`;
-                const maxLW = canvas.width * 0.8;
+                const maxLW = measCanvas2.width * 0.8;
                 const lines = wrapText(tmpCtx, td.text, maxLW);
                 const lineH = td.fontSize * 1.35;
                 let maxW = 0;
@@ -454,13 +462,13 @@ export function CanvasInteraction({ canvasRef }: CanvasInteractionProps) {
         let baseW: number, baseH: number;
         if (clip.textData) {
           const td = clip.textData;
-          const canvas = canvasRef.current;
-          if (canvas) {
-            const tmpCtx = canvas.getContext('2d');
+          const measCanvas = get2DCanvas();
+          if (measCanvas) {
+            const tmpCtx = measCanvas.getContext('2d');
             if (tmpCtx) {
               tmpCtx.save();
               tmpCtx.font = `bold ${td.fontSize}px ${td.fontFamily || 'system-ui'}`;
-              const maxLW = canvas.width * 0.8;
+              const maxLW = measCanvas.width * 0.8;
               const lines = wrapText(tmpCtx, td.text, maxLW);
               const lineH = td.fontSize * 1.35;
               let maxW = 0;
