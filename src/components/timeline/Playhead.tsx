@@ -18,15 +18,18 @@ export function Playhead({ pixelsPerSecond }: PlayheadProps) {
     // Pause playback while scrubbing
     useTimelineStore.getState().setIsPlaying(false);
 
-    const parentRect = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
+    // Find the scrollable timeline container (overflow-auto ancestor)
+    let scrollContainer = e.currentTarget.parentElement as HTMLElement;
+    while (scrollContainer && scrollContainer.scrollWidth <= scrollContainer.clientWidth && scrollContainer.parentElement) {
+      scrollContainer = scrollContainer.parentElement;
+    }
+    const containerRect = scrollContainer.getBoundingClientRect();
 
     const updateTime = (clientX: number) => {
-      const x = clientX - parentRect.left;
+      const x = clientX - containerRect.left + scrollContainer.scrollLeft;
       const time = Math.max(0, x / pixelsPerSecond);
       useTimelineStore.getState().setPlayheadTime(time);
     };
-
-    updateTime(e.clientX);
 
     const onMove = (me: MouseEvent) => updateTime(me.clientX);
     const onUp = () => {

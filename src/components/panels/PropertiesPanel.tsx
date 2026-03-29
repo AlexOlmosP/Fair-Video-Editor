@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useTimelineStore } from '@/store/useTimelineStore';
 import { useProjectStore } from '@/store/useProjectStore';
 import { secondsToDisplay } from '@/lib/time';
@@ -211,6 +211,11 @@ export function PropertiesPanel() {
   const [activeHslChannel, setActiveHslChannel] = useState<keyof ColorCorrectionParams['hsl']>('red');
   const [showHsl, setShowHsl] = useState(false);
 
+  // Helper to update a property across all selected clips
+  const updateAllSelected = useCallback((updates: Record<string, unknown>) => {
+    selectedClipIds.forEach((id) => updateClip(id, updates));
+  }, [selectedClipIds, updateClip]);
+
   if (selectedClipIds.length === 0) {
     return (
       <div className="flex flex-col h-full">
@@ -224,26 +229,143 @@ export function PropertiesPanel() {
     );
   }
 
+  // ── Multi-clip bulk edit panel ──
+  if (selectedClipIds.length > 1) {
+    const selectedClips = selectedClipIds.map((id) => clips[id]).filter(Boolean);
+    const hasText = selectedClips.some((c) => c.textData);
+    const firstClip = selectedClips[0];
+    return (
+      <div className="flex flex-col h-full">
+        <div className="p-3 border-b border-[var(--border-color)]">
+          <h2 className="text-sm font-semibold text-[var(--text-secondary)]">Bulk Edit</h2>
+          <p className="text-[10px] text-[var(--text-muted)] mt-0.5">{selectedClipIds.length} clips selected</p>
+        </div>
+        <div className="p-3 space-y-3 overflow-y-auto text-xs">
+          {/* Position */}
+          <div>
+            <label className="block text-[10px] text-[var(--text-muted)] font-medium mb-1">Position</label>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <span className="text-[9px] text-[var(--text-muted)]">X</span>
+                <input type="range" min={-posRangeX} max={posRangeX} value={firstClip?.position.x ?? 0}
+                  onChange={(e) => updateAllSelected({ position: { x: +e.target.value, y: firstClip?.position.y ?? 0 } })}
+                  className="w-full" />
+              </div>
+              <div>
+                <span className="text-[9px] text-[var(--text-muted)]">Y</span>
+                <input type="range" min={-posRangeY} max={posRangeY} value={firstClip?.position.y ?? 0}
+                  onChange={(e) => updateAllSelected({ position: { x: firstClip?.position.x ?? 0, y: +e.target.value } })}
+                  className="w-full" />
+              </div>
+            </div>
+          </div>
+          {/* Scale */}
+          <div>
+            <label className="block text-[10px] text-[var(--text-muted)] font-medium mb-1">Scale</label>
+            <input type="range" min={0.1} max={3} step={0.05} value={firstClip?.scale.x ?? 1}
+              onChange={(e) => updateAllSelected({ scale: { x: +e.target.value, y: +e.target.value } })}
+              className="w-full" />
+            <span className="text-[10px] text-[var(--text-muted)]">{((firstClip?.scale.x ?? 1) * 100).toFixed(0)}%</span>
+          </div>
+          {/* Opacity */}
+          <div>
+            <label className="block text-[10px] text-[var(--text-muted)] font-medium mb-1">Opacity</label>
+            <input type="range" min={0} max={1} step={0.05} value={firstClip?.opacity ?? 1}
+              onChange={(e) => updateAllSelected({ opacity: +e.target.value })}
+              className="w-full" />
+            <span className="text-[10px] text-[var(--text-muted)]">{((firstClip?.opacity ?? 1) * 100).toFixed(0)}%</span>
+          </div>
+          {/* Volume */}
+          <div>
+            <label className="block text-[10px] text-[var(--text-muted)] font-medium mb-1">Volume</label>
+            <input type="range" min={0} max={2} step={0.05} value={firstClip?.volume ?? 1}
+              onChange={(e) => updateAllSelected({ volume: +e.target.value })}
+              className="w-full" />
+            <span className="text-[10px] text-[var(--text-muted)]">{((firstClip?.volume ?? 1) * 100).toFixed(0)}%</span>
+          </div>
+          {/* Text properties (if any selected clips have text) */}
+          {hasText && (
+            <div>
+              <label className="block text-[10px] text-[var(--text-muted)] font-medium mb-1">Text Font</label>
+              <select
+                value={firstClip?.textData?.fontFamily ?? 'system-ui'}
+                onChange={(e) => {
+                  selectedClipIds.forEach((id) => {
+                    const c = clips[id];
+                    if (c?.textData) {
+                      updateClip(id, { textData: { ...c.textData, fontFamily: e.target.value } });
+                    }
+                  });
+                }}
+                className="w-full px-2 py-1 text-xs bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)]"
+              >
+                {['system-ui','Arial','Helvetica','Georgia','Times New Roman','Verdana','Impact','Courier New','Trebuchet MS','Comic Sans MS','Palatino','Garamond','Tahoma','Segoe UI','Roboto','Open Sans','Montserrat','Poppins'].map((f) => (
+                  <option key={f} value={f}>{f}</option>
+                ))}
+              </select>
+              <label className="block text-[10px] text-[var(--text-muted)] font-medium mt-2 mb-1">Font Size</label>
+              <input type="range" min={12} max={200} value={firstClip?.textData?.fontSize ?? 48}
+                onChange={(e) => {
+                  selectedClipIds.forEach((id) => {
+                    const c = clips[id];
+                    if (c?.textData) {
+                      updateClip(id, { textData: { ...c.textData, fontSize: +e.target.value } });
+                    }
+                  });
+                }}
+                className="w-full" />
+              <span className="text-[10px] text-[var(--text-muted)]">{firstClip?.textData?.fontSize ?? 48}px</span>
+              <label className="block text-[10px] text-[var(--text-muted)] font-medium mt-2 mb-1">Color</label>
+              <input type="color" value={firstClip?.textData?.color ?? '#ffffff'}
+                onChange={(e) => {
+                  selectedClipIds.forEach((id) => {
+                    const c = clips[id];
+                    if (c?.textData) {
+                      updateClip(id, { textData: { ...c.textData, color: e.target.value } });
+                    }
+                  });
+                }}
+                className="w-8 h-8 rounded border border-[var(--border-color)] cursor-pointer bg-transparent" />
+            </div>
+          )}
+          {/* Delete all */}
+          <button
+            onClick={() => selectedClipIds.forEach((id) => useTimelineStore.getState().removeClip(id))}
+            className="w-full px-3 py-2 rounded-lg bg-red-600/20 text-red-400 text-xs font-medium hover:bg-red-600/30 btn-press"
+          >
+            Delete {selectedClipIds.length} clips
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const clip = clips[selectedClipIds[0]];
   if (!clip) return null;
 
   const activeFilters = clip.filters;
   const clipSourceDuration = clip.outPoint - clip.inPoint;
 
-  // Color Correction helpers
+  // Color Correction helpers — read fresh state to avoid stale closures during rapid slider drags
   const cc = clip.colorCorrection ?? DEFAULT_COLOR_CORRECTION;
+  const getFreshCC = () => {
+    const freshClip = useTimelineStore.getState().clips[clip.id];
+    return freshClip?.colorCorrection ?? DEFAULT_COLOR_CORRECTION;
+  };
   const updateCC = (key: keyof Omit<ColorCorrectionParams, 'hsl'>, val: number) => {
-    updateClip(clip.id, { colorCorrection: { ...cc, [key]: val } });
+    const fresh = getFreshCC();
+    updateClip(clip.id, { colorCorrection: { ...fresh, [key]: val } });
   };
   const updateHsl = (
     channel: keyof ColorCorrectionParams['hsl'],
     key: keyof HslChannelAdjustment,
     val: number
   ) => {
+    const fresh = getFreshCC();
     updateClip(clip.id, {
       colorCorrection: {
-        ...cc,
-        hsl: { ...cc.hsl, [channel]: { ...cc.hsl[channel], [key]: val } },
+        ...fresh,
+        hsl: { ...fresh.hsl, [channel]: { ...fresh.hsl[channel], [key]: val } },
       },
     });
   };

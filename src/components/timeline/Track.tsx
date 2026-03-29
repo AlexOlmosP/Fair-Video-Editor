@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useRef } from 'react';
 import { useTimelineStore } from '@/store/useTimelineStore';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useMediaStore } from '@/store/useMediaStore';
@@ -25,18 +25,63 @@ export function Track({ track, pixelsPerSecond }: TrackProps) {
   );
   const setPlayheadTime = useTimelineStore((s) => s.setPlayheadTime);
   const deselectAll = useTimelineStore((s) => s.deselectAll);
+  const selectClip = useTimelineStore((s) => s.selectClip);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [dragSelectRect, setDragSelectRect] = useState<{ x1: number; x2: number } | null>(null);
+  const dragStartRef = useRef<{ x: number; moved: boolean } | null>(null);
 
-  const handleTrackClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Click on empty area: move playhead, deselect clips
-    if (e.target === e.currentTarget) {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const time = x / pixelsPerSecond;
-      setPlayheadTime(time);
-      deselectAll();
-    }
-  };
+  const handleTrackMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    // Only start drag-select from empty track area
+    if (e.target !== e.currentTarget) return;
+    e.preventDefault();
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const startX = e.clientX - rect.left;
+    dragStartRef.current = { x: startX, moved: false };
+
+    const onMove = (me: MouseEvent) => {
+      const curX = me.clientX - rect.left;
+      const drag = dragStartRef.current;
+      if (!drag) return;
+      if (Math.abs(curX - drag.x) > 5) drag.moved = true;
+      if (drag.moved) {
+        const x1 = Math.min(drag.x, curX);
+        const x2 = Math.max(drag.x, curX);
+        setDragSelectRect({ x1, x2 });
+
+        // Select clips that overlap the drag range
+        const t1 = x1 / pixelsPerSecond;
+        const t2 = x2 / pixelsPerSecond;
+        const clipsInRange = clips.filter((c) => {
+          const clipEnd = c.startTime + c.duration;
+          return c.startTime < t2 && clipEnd > t1;
+        });
+
+        // Replace selection with clips in range
+        useTimelineStore.getState().deselectAll();
+        clipsInRange.forEach((c) => selectClip(c.id, true));
+      }
+    };
+
+    const onUp = (me: MouseEvent) => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      setDragSelectRect(null);
+
+      const drag = dragStartRef.current;
+      dragStartRef.current = null;
+
+      if (!drag?.moved) {
+        // Simple click on empty area: move playhead, deselect
+        const x = me.clientX - rect.left;
+        setPlayheadTime(x / pixelsPerSecond);
+        deselectAll();
+      }
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, [clips, pixelsPerSecond, setPlayheadTime, deselectAll, selectClip]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     const hasAsset = e.dataTransfer.types.includes('application/x-asset-id');
@@ -135,20 +180,28 @@ export function Track({ track, pixelsPerSecond }: TrackProps) {
         height: track.height + (hasAnimations ? ANIMATION_SUBLANE_HEIGHT : 0),
         opacity: track.visible ? 1 : 0.4,
       }}
-      onClick={handleTrackClick}
+      onMouseDown={handleTrackMouseDown}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
       {/* Track background stripe */}
       <div
-        className="absolute inset-0 opacity-5"
+        className="absolute inset-0 opacity-5 pointer-events-none"
         style={{ backgroundColor: trackColor }}
       />
 
       {/* Drop indicator */}
       {isDragOver && (
         <div className="absolute inset-0 border-2 border-dashed border-blue-500/50 rounded pointer-events-none z-10" />
+      )}
+
+      {/* Drag-select rectangle */}
+      {dragSelectRect && (
+        <div
+          className="absolute top-0 bottom-0 bg-blue-500/15 border border-blue-500/40 rounded-sm pointer-events-none z-20"
+          style={{ left: dragSelectRect.x1, width: dragSelectRect.x2 - dragSelectRect.x1 }}
+        />
       )}
 
       {/* Clips */}

@@ -113,6 +113,11 @@ export function AssetsPanel() {
           size,
           dateAdded,
         });
+        // Register audio element so captions and playback can access it
+        const audioEl = new Audio();
+        audioEl.src = url;
+        audioEl.preload = 'auto';
+        useMediaStore.getState().register(assetId, audioEl);
         addToTimeline(assetId, type, mediaDuration);
         decodeAndExtractPeaks(assetId, url).then((peaks) => {
           useMediaStore.getState().registerWaveform(assetId, peaks);

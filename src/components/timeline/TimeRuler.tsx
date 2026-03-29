@@ -50,7 +50,7 @@ export function TimeRuler({ pixelsPerSecond }: TimeRulerProps) {
     <div
       className="h-6 border-b border-[var(--border-color)] relative cursor-pointer flex-shrink-0 sticky top-0 bg-[var(--bg-secondary)] z-10"
       style={{ width: visibleDuration * pixelsPerSecond }}
-      onClick={handleClick}
+      onMouseDown={handleClick}
       onContextMenu={handleContextMenu}
     >
       {/* Tick marks */}

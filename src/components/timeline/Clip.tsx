@@ -142,11 +142,12 @@ export function Clip({ clip, trackColor, pixelsPerSecond }: ClipProps) {
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isEffectivelyLocked) { selectClip(clip.id, e.shiftKey); return; }
+    const multiSelect = e.shiftKey || e.ctrlKey || e.metaKey;
+    if (isEffectivelyLocked) { selectClip(clip.id, multiSelect); return; }
     const target = e.target as HTMLElement;
     if (target.dataset.trimHandle) return;
 
-    selectClip(clip.id, e.shiftKey);
+    selectClip(clip.id, multiSelect);
 
     const startX = e.clientX;
     const startY = e.clientY;

@@ -20,9 +20,15 @@ import {
 } from '@/engine/types';
 
 /** Derive initial export settings from the current project settings */
+const RESOLUTION_DEFAULT_BITRATE: Record<string, string> = {
+  '720p': '6000k',
+  '1080p': '10000k',
+  '2k': '18000k',
+  '4k': '40000k',
+};
+
 function deriveDefaultSettings(): ExportSettings {
   const { settings } = useProjectStore.getState();
-  // Find the resolution preset whose dimensions are closest to the project dimensions
   let bestKey = DEFAULT_EXPORT_SETTINGS.resolutionKey;
   let bestDiff = Infinity;
   for (const [key, preset] of Object.entries(RESOLUTION_PRESETS)) {
@@ -35,7 +41,8 @@ function deriveDefaultSettings(): ExportSettings {
   const frameRate = (FRAME_RATE_OPTIONS as readonly number[]).includes(settings.frameRate)
     ? settings.frameRate
     : DEFAULT_EXPORT_SETTINGS.frameRate;
-  return { ...DEFAULT_EXPORT_SETTINGS, resolutionKey: bestKey, frameRate };
+  const videoBitrate = RESOLUTION_DEFAULT_BITRATE[bestKey] ?? DEFAULT_EXPORT_SETTINGS.videoBitrate;
+  return { ...DEFAULT_EXPORT_SETTINGS, resolutionKey: bestKey, frameRate, videoBitrate };
 }
 
 interface ExportModalProps {
@@ -95,17 +102,17 @@ function audioBufferToWav(audioBuffer: AudioBuffer): Uint8Array {
 async function mixAudioTracks(
   clips: Record<string, Clip>,
   tracks: Record<string, Track>,
-  elements: Record<string, HTMLVideoElement | HTMLImageElement>,
+  elements: Record<string, HTMLVideoElement | HTMLImageElement | HTMLAudioElement>,
   totalDuration: number,
   sampleRate: number,
 ): Promise<AudioBuffer | null> {
-  // Only video elements on non-muted, visible tracks can carry audio
+  // Video and audio elements on non-muted, visible tracks can carry audio
   const candidates = Object.values(clips).filter((clip) => {
     if (!clip.visible || clip.textData || clip.transitionData) return false;
     const track = tracks[clip.trackId];
     if (!track || track.muted) return false;
     const el = elements[clip.assetId];
-    return el instanceof HTMLVideoElement && Boolean((el as HTMLVideoElement).src);
+    return (el instanceof HTMLVideoElement || el instanceof HTMLAudioElement) && Boolean(el.src);
   });
 
   if (candidates.length === 0) return null;
@@ -116,7 +123,7 @@ async function mixAudioTracks(
   let hasAudio = false;
 
   for (const clip of candidates) {
-    const el = elements[clip.assetId] as HTMLVideoElement;
+    const el = elements[clip.assetId] as HTMLVideoElement | HTMLAudioElement;
     try {
       const response = await fetch(el.src);
       if (!response.ok) continue;
@@ -197,7 +204,7 @@ export function ExportModal({ onClose }: ExportModalProps) {
   const [exportSettings, setExportSettings] = useState<ExportSettings>(deriveDefaultSettings);
   const [qualityKey, setQualityKey] = useState('high');
   const [customBitrateMbps, setCustomBitrateMbps] = useState(() => {
-    const kbps = parseInt(DEFAULT_EXPORT_SETTINGS.videoBitrate) || 12000;
+    const kbps = parseInt(exportSettings.videoBitrate) || 10000;
     return String(kbps / 1000);
   });
   const [isExporting,    setIsExporting]    = useState(false);
@@ -486,8 +493,8 @@ export function ExportModal({ onClose }: ExportModalProps) {
   const resPre = RESOLUTION_PRESETS[exportSettings.resolutionKey];
 
   // Shared Tailwind classes
-  const selectCls = 'w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/90 outline-none focus:border-blue-500 transition-colors appearance-none cursor-pointer';
-  const labelCls  = 'block text-xs font-medium text-white/50 mb-1.5';
+  const selectCls = 'w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-blue-500 transition-colors appearance-none cursor-pointer [&>option]:bg-[var(--bg-tertiary)] [&>option]:text-[var(--text-primary)]';
+  const labelCls  = 'block text-xs font-medium text-[var(--text-muted)] mb-1.5';
 
   return (
     <div
@@ -534,7 +541,15 @@ export function ExportModal({ onClose }: ExportModalProps) {
               <label className={labelCls}>Resolution</label>
               <select
                 value={exportSettings.resolutionKey}
-                onChange={(e) => updateSetting('resolutionKey', e.target.value)}
+                onChange={(e) => {
+                  const key = e.target.value;
+                  updateSetting('resolutionKey', key);
+                  const autoBitrate = RESOLUTION_DEFAULT_BITRATE[key];
+                  if (autoBitrate) {
+                    updateSetting('videoBitrate', autoBitrate);
+                    setCustomBitrateMbps(String(parseInt(autoBitrate) / 1000));
+                  }
+                }}
                 className={selectCls}
               >
                 {Object.entries(RESOLUTION_PRESETS).map(([key, p]) => (

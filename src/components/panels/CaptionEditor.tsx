@@ -88,22 +88,22 @@ export function CaptionEditor() {
 
     let targetClipId = selectedClipIds[0];
     if (!targetClipId) {
-      const firstVideoClip = Object.values(clips).find((c) => {
+      const firstMediaClip = Object.values(clips).find((c) => {
         const asset = assets[c.assetId];
-        return asset?.type === 'video';
+        return asset?.type === 'video' || asset?.type === 'audio';
       });
-      if (firstVideoClip) targetClipId = firstVideoClip.id;
+      if (firstMediaClip) targetClipId = firstMediaClip.id;
     }
 
     if (!targetClipId) {
-      setError('No video clip found. Import a video first.');
+      setError('No video or audio clip found. Import a media file first.');
       return;
     }
 
     const clip = clips[targetClipId];
     const element = elements[clip?.assetId];
-    if (!(element instanceof HTMLVideoElement)) {
-      setError('Selected clip is not a video.');
+    if (!(element instanceof HTMLVideoElement) && !(element instanceof HTMLAudioElement)) {
+      setError('Selected clip is not a video or audio file.');
       return;
     }
 

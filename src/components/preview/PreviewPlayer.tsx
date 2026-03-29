@@ -5,7 +5,7 @@ import { PreviewControls } from './PreviewControls';
 import { CanvasInteraction } from './CanvasInteraction';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useTimelineStore } from '@/store/useTimelineStore';
-import { useMediaStore } from '@/store/useMediaStore';
+import { useMediaStore, getSourceDimensions } from '@/store/useMediaStore';
 import { ASPECT_RATIO_PRESETS } from '@/lib/constants';
 import { computeInternalTime } from '@/engine/animation/speedMapping';
 import { processBackgroundRemoval } from '@/engine/processors/BackgroundRemover';
@@ -351,7 +351,7 @@ function renderFrameWebGL(
   backgroundColor: string,
   activeClips: Clip[],
   activeTextClips: Clip[],
-  elements: Record<string, HTMLVideoElement | HTMLImageElement>,
+  elements: Record<string, HTMLVideoElement | HTMLImageElement | HTMLAudioElement>,
   playheadTime: number,
   isCropMode: boolean,
   selectedClipIds: string[],
@@ -369,6 +369,7 @@ function renderFrameWebGL(
 
       const source = elements[clip.assetId];
       if (!source) continue;
+      if (source instanceof HTMLAudioElement) continue;
 
       const animOpacity   = interpolateProperty(clip, 'opacity',    playheadTime, clip.opacity);
       const animScaleX    = interpolateProperty(clip, 'scaleX',     playheadTime, clip.scale.x);
@@ -388,8 +389,7 @@ function renderFrameWebGL(
           tmpCanvas.getContext('2d')!.putImageData(cached.imageData, 0, 0);
           pixelSource = tmpCanvas;
         } else {
-          const srcW = ('videoWidth'  in source ? source.videoWidth  : source.width)  || projectW;
-          const srcH = ('videoHeight' in source ? source.videoHeight : source.height) || projectH;
+          const { srcW, srcH } = getSourceDimensions(source, projectW, projectH);
           bgProcessingRef.current.add(clip.id);
           processBackgroundRemoval(source, srcW, srcH).then((result) => {
             bgProcessingRef.current.delete(clip.id);
@@ -506,7 +506,7 @@ function renderFrameCanvas2D(
   backgroundColor: string,
   activeClips: Clip[],
   activeTextClips: Clip[],
-  elements: Record<string, HTMLVideoElement | HTMLImageElement>,
+  elements: Record<string, HTMLVideoElement | HTMLImageElement | HTMLAudioElement>,
   playheadTime: number,
   isCropMode: boolean,
   selectedClipIds: string[],
@@ -539,6 +539,7 @@ function renderFrameCanvas2D(
 
       const source = elements[clip.assetId];
       if (!source) continue;
+      if (source instanceof HTMLAudioElement) continue;
 
       const animOpacity  = interpolateProperty(clip, 'opacity',    playheadTime, clip.opacity);
       const animScaleX   = interpolateProperty(clip, 'scaleX',     playheadTime, clip.scale.x);
@@ -561,8 +562,7 @@ function renderFrameCanvas2D(
       ctx.rotate((animRotation * Math.PI) / 180);
       ctx.scale(animScaleX, animScaleY);
 
-      const srcW = ('videoWidth'  in source ? source.videoWidth  : source.width)  || projectW;
-      const srcH = ('videoHeight' in source ? source.videoHeight : source.height) || projectH;
+      const { srcW, srcH } = getSourceDimensions(source, projectW, projectH);
       const scaleF = Math.min(projectW / srcW, projectH / srcH);
       const drawW  = srcW * scaleF * sx;
       const drawH  = srcH * scaleF * sy;
@@ -705,7 +705,7 @@ function drawUIOverlays(
   projectW: number, projectH: number,
   activeClips: Clip[],
   activeTextClips: Clip[],
-  elements: Record<string, HTMLVideoElement | HTMLImageElement>,
+  elements: Record<string, HTMLVideoElement | HTMLImageElement | HTMLAudioElement>,
   playheadTime: number,
   isCropMode: boolean,
   selectedClipIds: string[]
@@ -733,8 +733,7 @@ function drawUIOverlays(
     } else {
       const source = elements[clip.assetId];
       if (!source) continue;
-      const srcW = ('videoWidth'  in source ? source.videoWidth  : source.width)  || projectW;
-      const srcH = ('videoHeight' in source ? source.videoHeight : source.height) || projectH;
+      const { srcW, srcH } = getSourceDimensions(source, projectW, projectH);
       const scaleF = Math.min(projectW / srcW, projectH / srcH);
       drawW = srcW * scaleF * clip.scale.x * sx;
       drawH = srcH * scaleF * clip.scale.y * sy;

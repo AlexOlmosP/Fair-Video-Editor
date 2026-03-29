@@ -3,13 +3,6 @@
 import { useProjectStore } from '@/store/useProjectStore';
 import { ASPECT_RATIO_PRESETS } from '@/lib/constants';
 
-const FORMAT_PRESETS = [
-  { label: '16:9', width: 1920, height: 1080 },
-  { label: '9:16', width: 1080, height: 1920 },
-  { label: '4:5', width: 1080, height: 1350 },
-  { label: '1:1', width: 1080, height: 1080 },
-];
-
 const FPS_OPTIONS = [24, 25, 30, 60];
 
 export function SettingsPanel() {
@@ -20,10 +13,6 @@ export function SettingsPanel() {
   const aspectRatioLocked = useProjectStore((s) => s.aspectRatioLocked);
   const setAspectRatioLocked = useProjectStore((s) => s.setAspectRatioLocked);
 
-  const currentFormat = FORMAT_PRESETS.find(
-    (p) => p.width === settings.width && p.height === settings.height
-  );
-
   return (
     <div className="flex flex-col h-full">
       <div className="px-3 py-3 border-b border-[var(--border-color)]">
@@ -31,36 +20,6 @@ export function SettingsPanel() {
       </div>
 
       <div className="p-3 space-y-5 overflow-y-auto">
-        {/* Canvas Format */}
-        <div>
-          <label className="block text-[11px] text-[var(--text-secondary)] font-medium mb-2">Canvas Format</label>
-          <div className="grid grid-cols-2 gap-2">
-            {FORMAT_PRESETS.map((preset) => {
-              const isActive = currentFormat?.label === preset.label;
-              const aspectW = preset.width > preset.height ? 32 : Math.round(32 * preset.width / preset.height);
-              const aspectH = preset.height > preset.width ? 32 : Math.round(32 * preset.height / preset.width);
-              return (
-                <button
-                  key={preset.label}
-                  onClick={() => updateSettings({ width: preset.width, height: preset.height })}
-                  className={`flex flex-col items-center gap-1.5 px-3 py-3 rounded-lg btn-press transition-colors ${
-                    isActive
-                      ? 'bg-blue-600/20 border border-blue-500 text-white'
-                      : 'bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[var(--hover-bg)]'
-                  }`}
-                >
-                  <div
-                    className={`border-2 rounded-sm ${isActive ? 'border-blue-400' : 'border-[var(--text-muted)]'}`}
-                    style={{ width: aspectW, height: aspectH }}
-                  />
-                  <span className="text-xs font-medium">{preset.label}</span>
-                  <span className="text-[9px] text-[var(--text-muted)]">{preset.width}x{preset.height}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
         {/* Custom Dimensions */}
         <div>
           <label className="block text-[11px] text-[var(--text-secondary)] font-medium mb-2">Custom Size</label>

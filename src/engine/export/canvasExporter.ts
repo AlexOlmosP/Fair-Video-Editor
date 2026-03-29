@@ -1,4 +1,5 @@
 import type { Clip, Track } from '@/store/types';
+import { getSourceDimensions } from '@/store/useMediaStore';
 import { interpolateProperty } from '@/engine/animation/interpolate';
 import { computeInternalTime } from '@/engine/animation/speedMapping';
 
@@ -55,7 +56,7 @@ interface ExportOptions {
   clips: Record<string, Clip>;
   tracks: Record<string, Track>;
   trackOrder: string[];
-  elements: Record<string, HTMLVideoElement | HTMLImageElement>;
+  elements: Record<string, HTMLVideoElement | HTMLImageElement | HTMLAudioElement>;
   totalDuration: number;
   onProgress: (stage: string, frame: number, total: number) => void;
   writeFrame: (name: string, data: Blob) => Promise<void>;
@@ -77,7 +78,7 @@ export function renderFrameToCanvasExport(
   clips: Record<string, Clip>,
   tracks: Record<string, Track>,
   trackOrder: string[],
-  elements: Record<string, HTMLVideoElement | HTMLImageElement>,
+  elements: Record<string, HTMLVideoElement | HTMLImageElement | HTMLAudioElement>,
 ) {
   renderFrameToCanvas(ctx, width, height, projectWidth, projectHeight, backgroundColor, time, clips, tracks, trackOrder, elements);
 }
@@ -93,7 +94,7 @@ function renderFrameToCanvas(
   clips: Record<string, Clip>,
   tracks: Record<string, Track>,
   trackOrder: string[],
-  elements: Record<string, HTMLVideoElement | HTMLImageElement>,
+  elements: Record<string, HTMLVideoElement | HTMLImageElement | HTMLAudioElement>,
 ) {
   ctx.fillStyle = backgroundColor;
   ctx.fillRect(0, 0, width, height);
@@ -128,6 +129,7 @@ function renderFrameToCanvas(
 
     const source = elements[clip.assetId];
     if (!source) continue;
+    if (source instanceof HTMLAudioElement) continue;
 
     const animOpacity = interpolateProperty(clip, 'opacity', time, clip.opacity);
     const animScaleX = interpolateProperty(clip, 'scaleX', time, clip.scale.x);
@@ -144,21 +146,22 @@ function renderFrameToCanvas(
       ctx.filter = filterStr;
     }
 
-    // Map position from project space to export canvas (uniform scale, centered)
+    // Mirror preview logic: contain source to PROJECT dimensions, then scale to export
+    const { srcW, srcH } = getSourceDimensions(source, projectWidth, projectHeight);
+    const containScale = Math.min(projectWidth / srcW, projectHeight / srcH);
+    // Draw size in project space (same as preview WebGL compositor)
+    const projDrawW = srcW * containScale * animScaleX;
+    const projDrawH = srcH * containScale * animScaleY;
+
+    // Map from project space to export canvas
     const cx = width / 2 + animPosX * uScale;
     const cy = height / 2 + animPosY * uScale;
     ctx.translate(cx, cy);
     ctx.rotate((animRotation * Math.PI) / 180);
 
-    // Contain-scale source to export canvas, with correction to match preview proportions
-    const srcW = ('videoWidth' in source ? source.videoWidth : source.width) || projectWidth;
-    const srcH = ('videoHeight' in source ? source.videoHeight : source.height) || projectHeight;
-    const exportContain = Math.min(width / srcW, height / srcH);
-    const previewContain = Math.min(projectWidth / srcW, projectHeight / srcH);
-    const correction = previewContain / exportContain;
-    ctx.scale(animScaleX * correction, animScaleY * correction);
-    const drawW = srcW * exportContain;
-    const drawH = srcH * exportContain;
+    // Scale draw dimensions from project space to export space
+    const drawW = projDrawW * uScale;
+    const drawH = projDrawH * uScale;
 
     ctx.drawImage(source, -drawW / 2, -drawH / 2, drawW, drawH);
     ctx.restore();
@@ -236,7 +239,7 @@ function renderFrameToCanvas(
  */
 function buildSeekPlan(
   clips: Record<string, Clip>,
-  elements: Record<string, HTMLVideoElement | HTMLImageElement>,
+  elements: Record<string, HTMLVideoElement | HTMLImageElement | HTMLAudioElement>,
   totalFrames: number,
   frameRate: number,
 ): Map<string, { clipId: string; times: (number | null)[] }> {

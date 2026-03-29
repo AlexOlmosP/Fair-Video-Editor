@@ -3,7 +3,7 @@
 import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { useTimelineStore } from '@/store/useTimelineStore';
 import { useProjectStore } from '@/store/useProjectStore';
-import { useMediaStore } from '@/store/useMediaStore';
+import { useMediaStore, getSourceDimensions } from '@/store/useMediaStore';
 import { wrapText } from '@/lib/textLayout';
 
 interface CanvasInteractionProps {
@@ -141,8 +141,7 @@ export function CanvasInteraction({ canvasRef, measureCanvasRef }: CanvasInterac
         } else {
           const source = elements[clip.assetId];
           if (!source) continue;
-          const srcW = ('videoWidth' in source ? source.videoWidth : source.width) || width;
-          const srcH = ('videoHeight' in source ? source.videoHeight : source.height) || height;
+          const { srcW, srcH } = getSourceDimensions(source, width, height);
           const scaleF = Math.min(width / srcW, height / srcH);
           drawW = srcW * scaleF * clip.scale.x;
           drawH = srcH * scaleF * clip.scale.y;
@@ -236,8 +235,7 @@ export function CanvasInteraction({ canvasRef, measureCanvasRef }: CanvasInterac
       const source = elements[clip.assetId];
       if (!source) return null;
 
-      const srcW = ('videoWidth' in source ? source.videoWidth : source.width) || width;
-      const srcH = ('videoHeight' in source ? source.videoHeight : source.height) || height;
+      const { srcW, srcH } = getSourceDimensions(source, width, height);
       const scaleF = Math.min(width / srcW, height / srcH);
       const drawW = srcW * scaleF * clip.scale.x;
       const drawH = srcH * scaleF * clip.scale.y;
@@ -420,8 +418,7 @@ export function CanvasInteraction({ canvasRef, measureCanvasRef }: CanvasInterac
             const { elements } = useMediaStore.getState();
             const source = elements[clip.assetId];
             if (source) {
-              const srcW = ('videoWidth' in source ? source.videoWidth : source.width) || width;
-              const srcH = ('videoHeight' in source ? source.videoHeight : source.height) || height;
+              const { srcW, srcH } = getSourceDimensions(source, width, height);
               const scaleF = Math.min(width / srcW, height / srcH);
               halfW = (srcW * scaleF * clip.scale.x) / 2;
               halfH = (srcH * scaleF * clip.scale.y) / 2;
@@ -490,8 +487,7 @@ export function CanvasInteraction({ canvasRef, measureCanvasRef }: CanvasInterac
           const { elements } = useMediaStore.getState();
           const source = elements[clip.assetId];
           if (!source) return;
-          const srcW = ('videoWidth' in source ? source.videoWidth : source.width) || width;
-          const srcH = ('videoHeight' in source ? source.videoHeight : source.height) || height;
+          const { srcW, srcH } = getSourceDimensions(source, width, height);
           const scaleF = Math.min(width / srcW, height / srcH);
           baseW = srcW * scaleF;
           baseH = srcH * scaleF;

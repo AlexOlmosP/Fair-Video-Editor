@@ -60,9 +60,9 @@ async function loadModel(
  * Extract audio from a video element as mono Float32Array at 16kHz.
  * Uses Web Audio API — no FFmpeg needed.
  */
-async function extractAudio(videoElement: HTMLVideoElement): Promise<Float32Array> {
-  const src = videoElement.src;
-  if (!src) throw new Error('Video element has no src');
+async function extractAudio(mediaElement: HTMLVideoElement | HTMLAudioElement): Promise<Float32Array> {
+  const src = mediaElement.src;
+  if (!src) throw new Error('Media element has no src');
 
   const response = await fetch(src);
   const arrayBuffer = await response.arrayBuffer();
@@ -89,7 +89,7 @@ async function extractAudio(videoElement: HTMLVideoElement): Promise<Float32Arra
  * Returns timestamped segments suitable for creating caption clips.
  */
 export async function transcribeVideo(
-  videoElement: HTMLVideoElement,
+  videoElement: HTMLVideoElement | HTMLAudioElement,
   onStatus: (status: TranscriptionStatus) => void,
 ): Promise<TranscriptionSegment[]> {
   try {

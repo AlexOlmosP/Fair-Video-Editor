@@ -40,13 +40,24 @@ export function EditorLayout() {
   useAudioPlayback();
   useAudioScrub();
 
-  const [leftPanelWidth, setLeftPanelWidth] = useState(() => loadSavedLayout()?.leftPanelWidth ?? 328);
-  const [rightPanelWidth, setRightPanelWidth] = useState(() => loadSavedLayout()?.rightPanelWidth ?? 260);
-  const [timelineHeight, setTimelineHeight] = useState(() => loadSavedLayout()?.timelineHeight ?? 300);
-  const [activePreset, setActivePreset] = useState<LayoutPresetName | null>(() => loadSavedLayout()?.activePreset ?? 'Default');
+  const [leftPanelWidth, setLeftPanelWidth] = useState(328);
+  const [rightPanelWidth, setRightPanelWidth] = useState(260);
+  const [timelineHeight, setTimelineHeight] = useState(300);
+  const [activePreset, setActivePreset] = useState<LayoutPresetName | null>('Default');
   const [isDragOver, setIsDragOver] = useState(false);
   const [leftTab, setLeftTab] = useState<SidebarTab>('media');
   const [showRightPanel, setShowRightPanel] = useState(true);
+
+  // Restore saved layout on mount (client only)
+  useEffect(() => {
+    const saved = loadSavedLayout();
+    if (saved) {
+      setLeftPanelWidth(saved.leftPanelWidth);
+      setRightPanelWidth(saved.rightPanelWidth);
+      setTimelineHeight(saved.timelineHeight);
+      setActivePreset(saved.activePreset);
+    }
+  }, []);
 
   // Persist layout to localStorage whenever it changes
   useEffect(() => {
