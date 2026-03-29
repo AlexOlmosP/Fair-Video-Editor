@@ -339,7 +339,7 @@ export function ExportModal({ onClose }: ExportModalProps) {
         clips,
         tracks,
         trackOrder,
-        elements: elements as Record<string, HTMLVideoElement | HTMLImageElement>,
+        elements: elements as Record<string, HTMLVideoElement | HTMLImageElement | HTMLAudioElement>,
         totalDuration,
         signal,
         onProgress: (_stage, frame, total) => {
@@ -371,7 +371,7 @@ export function ExportModal({ onClose }: ExportModalProps) {
         const audioBuf = await mixAudioTracks(
           clips,
           tracks,
-          elements as Record<string, HTMLVideoElement | HTMLImageElement>,
+          elements as Record<string, HTMLVideoElement | HTMLImageElement | HTMLAudioElement>,
           totalDuration,
           sampleRate,
         );

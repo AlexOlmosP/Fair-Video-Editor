@@ -36,10 +36,10 @@ export function useAudioPlayback() {
       const { clips, playheadTime, isPlaying } = state;
       const elements = useMediaStore.getState().elements;
 
-      // Connect new video elements to audio graph
+      // Connect new video/audio elements to audio graph
       for (const clip of Object.values(clips)) {
         const el = elements[clip.assetId];
-        if (!el || !(el instanceof HTMLVideoElement)) continue;
+        if (!el || (!(el instanceof HTMLVideoElement) && !(el instanceof HTMLAudioElement))) continue;
         if (connectedRef.current.has(clip.assetId)) continue;
 
         try {
@@ -71,7 +71,7 @@ export function useAudioPlayback() {
         gainNode.gain.value = isActive && !speedTooExtreme ? clip.volume : 0;
 
         // Sync playback rate for moderate speeds
-        if (el instanceof HTMLVideoElement && isActive) {
+        if ((el instanceof HTMLVideoElement || el instanceof HTMLAudioElement) && isActive) {
           const clampedSpeed = Math.max(0.0625, Math.min(16, clip.speed));
           if (Math.abs(el.playbackRate - clampedSpeed) > 0.01) {
             el.playbackRate = clampedSpeed;
