@@ -1,6 +1,7 @@
 import type { Clip, Track } from '@/store/types';
 import { getSourceDimensions } from '@/store/useMediaStore';
 import { interpolateProperty } from '@/engine/animation/interpolate';
+import { wrapText } from '@/lib/textLayout';
 import { computeInternalTime } from '@/engine/animation/speedMapping';
 
 /** Map effect IDs to Canvas 2D filter strings */
@@ -206,9 +207,15 @@ function renderFrameToCanvas(
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
-      const metrics = ctx.measureText(td.text);
-      const textW = metrics.width + 24 * uScale;
-      const textH = ((td.fontSize || 48) + 16) * uScale;
+      const maxLineWidth = width * 0.85;
+      const lines = wrapText(ctx, td.text, maxLineWidth);
+      const lineH = fontSize * 1.35;
+      const totalTextH = lines.length * lineH;
+
+      let maxLW = 0;
+      for (const line of lines) maxLW = Math.max(maxLW, ctx.measureText(line).width);
+      const textW = maxLW + 24 * uScale;
+      const textH = totalTextH + 12 * uScale;
 
       if (td.backgroundColor && textW > 0 && textH > 0) {
         ctx.fillStyle = td.backgroundColor;
@@ -218,14 +225,16 @@ function renderFrameToCanvas(
         ctx.fill();
       }
 
-      if (td.strokeColor && td.strokeWidth) {
-        ctx.strokeStyle = td.strokeColor;
-        ctx.lineWidth = td.strokeWidth * uScale;
-        ctx.strokeText(td.text, 0, 0);
-      }
-
       ctx.fillStyle = td.color || '#ffffff';
-      ctx.fillText(td.text, 0, 0);
+      for (let i = 0; i < lines.length; i++) {
+        const lineY = (i - (lines.length - 1) / 2) * lineH;
+        if (td.strokeColor && td.strokeWidth) {
+          ctx.strokeStyle = td.strokeColor;
+          ctx.lineWidth = td.strokeWidth * uScale;
+          ctx.strokeText(lines[i], 0, lineY);
+        }
+        ctx.fillText(lines[i], 0, lineY);
+      }
       ctx.restore();
     } catch {
       ctx.restore();

@@ -669,11 +669,11 @@ export function CanvasInteraction({ canvasRef, measureCanvasRef }: CanvasInterac
           onChange={(e) => setEditText(e.target.value)}
           onBlur={commitEdit}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commitEdit(); }
-            if (e.key === 'Escape') setEditingClipId(null);
+            if (e.key === 'Escape') { commitEdit(); }
+            e.stopPropagation();
           }}
           style={getEditOverlayStyle()}
-          rows={1}
+          rows={3}
         />
       )}
     </div>
