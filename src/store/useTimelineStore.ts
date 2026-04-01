@@ -12,8 +12,8 @@ const GROUP_COLORS = ['#f59e0b', '#10b981', '#6366f1', '#ec4899', '#06b6d4', '#f
 // Each outer operation increments the depth; inner calls skip pushing.
 let _suppressDepth = 0;
 const isSuppressed = () => _suppressDepth > 0;
-const suppressHistory = () => { _suppressDepth++; };
-const restoreHistorySuppression = () => { _suppressDepth--; };
+export const suppressHistory = () => { _suppressDepth++; };
+export const restoreHistorySuppression = () => { _suppressDepth--; };
 
 function pushTimelineHistory(type: string, before: TimelineSnapshot, after: TimelineSnapshot) {
   if (isSuppressed()) return;
@@ -116,6 +116,7 @@ interface TimelineState {
   // History helpers (used by undo/redo to restore state)
   _snapshotTimeline: () => TimelineSnapshot;
   _restoreTimeline: (snapshot: TimelineSnapshot) => void;
+  _pushHistory: (type: string, before: TimelineSnapshot, after: TimelineSnapshot) => void;
 
   // Computed
   recalculateDuration: () => void;
@@ -161,6 +162,10 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
       groups: snapshot.groups ?? {},
     });
     get().recalculateDuration();
+  },
+
+  _pushHistory: (type, before, after) => {
+    pushTimelineHistory(type, before, after);
   },
 
   // ─── Track Actions ───────────────────────────────────────────

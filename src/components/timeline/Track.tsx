@@ -174,54 +174,61 @@ export function Track({ track, pixelsPerSecond }: TrackProps) {
 
   return (
     <div
-      data-track-id={track.id}
-      className={`relative border-b border-[var(--border-color)] group ${isDragOver ? 'bg-blue-500/10' : ''}`}
-      style={{
-        height: track.height + (hasAnimations ? ANIMATION_SUBLANE_HEIGHT : 0),
-        opacity: track.visible ? 1 : 0.4,
-      }}
-      onMouseDown={handleTrackMouseDown}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
+      className={`border-b border-[var(--border-color)] group ${isDragOver ? 'bg-blue-500/10' : ''}`}
+      style={{ opacity: track.visible ? 1 : 0.4 }}
     >
-      {/* Track background stripe */}
+      {/* Clip area */}
       <div
-        className="absolute inset-0 opacity-5 pointer-events-none"
-        style={{ backgroundColor: trackColor }}
-      />
-
-      {/* Drop indicator */}
-      {isDragOver && (
-        <div className="absolute inset-0 border-2 border-dashed border-blue-500/50 rounded pointer-events-none z-10" />
-      )}
-
-      {/* Drag-select rectangle */}
-      {dragSelectRect && (
+        data-track-id={track.id}
+        className="relative"
+        style={{ height: track.height }}
+        onMouseDown={handleTrackMouseDown}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {/* Track background stripe */}
         <div
-          className="absolute top-0 bottom-0 bg-blue-500/15 border border-blue-500/40 rounded-sm pointer-events-none z-20"
-          style={{ left: dragSelectRect.x1, width: dragSelectRect.x2 - dragSelectRect.x1 }}
+          className="absolute inset-0 opacity-5 pointer-events-none"
+          style={{ backgroundColor: trackColor }}
         />
+
+        {/* Drop indicator */}
+        {isDragOver && (
+          <div className="absolute inset-0 border-2 border-dashed border-blue-500/50 rounded pointer-events-none z-10" />
+        )}
+
+        {/* Drag-select rectangle */}
+        {dragSelectRect && (
+          <div
+            className="absolute top-0 bottom-0 bg-blue-500/15 border border-blue-500/40 rounded-sm pointer-events-none z-20"
+            style={{ left: dragSelectRect.x1, width: dragSelectRect.x2 - dragSelectRect.x1 }}
+          />
+        )}
+
+        {/* Clips */}
+        {clips.map((clip) => (
+          <Clip
+            key={clip.id}
+            clip={clip}
+            trackColor={trackColor}
+            pixelsPerSecond={pixelsPerSecond}
+          />
+        ))}
+      </div>
+
+      {/* FX sub-track — separate row below clip area */}
+      {hasAnimations && (
+        <div className="relative" style={{ height: ANIMATION_SUBLANE_HEIGHT }}>
+          {clipsWithAnimations.map((clip) => (
+            <AnimationSubTrack
+              key={`anim-${clip.id}`}
+              clip={clip}
+              pixelsPerSecond={pixelsPerSecond}
+            />
+          ))}
+        </div>
       )}
-
-      {/* Clips */}
-      {clips.map((clip) => (
-        <Clip
-          key={clip.id}
-          clip={clip}
-          trackColor={trackColor}
-          pixelsPerSecond={pixelsPerSecond}
-        />
-      ))}
-
-      {/* Animation sub-tracks */}
-      {clipsWithAnimations.map((clip) => (
-        <AnimationSubTrack
-          key={`anim-${clip.id}`}
-          clip={clip}
-          pixelsPerSecond={pixelsPerSecond}
-        />
-      ))}
 
       {/* Transition insertion buttons between clips */}
       {gaps.map((gap, i) => (

@@ -24,6 +24,41 @@ export interface ExportSettings {
   bitrateMode: 'vbr' | 'cbr'; // variable or constant bitrate
 }
 
+/** Base short-edge sizes for each quality tier */
+const RESOLUTION_TIERS = [
+  { key: '720p',  label: '720p HD',       shortEdge: 720  },
+  { key: '1080p', label: '1080p Full HD', shortEdge: 1080 },
+  { key: '2k',    label: '2K QHD',        shortEdge: 1440 },
+  { key: '4k',    label: '4K Ultra HD',   shortEdge: 2160 },
+];
+
+/** Generate resolution presets based on the project's canvas dimensions */
+export function getResolutionPresets(
+  projectWidth: number,
+  projectHeight: number
+): Record<string, { label: string; width: number; height: number }> {
+  const isLandscape = projectWidth >= projectHeight;
+  const aspectRatio = projectWidth / projectHeight;
+  const presets: Record<string, { label: string; width: number; height: number }> = {};
+
+  for (const tier of RESOLUTION_TIERS) {
+    let w: number, h: number;
+    if (isLandscape) {
+      h = tier.shortEdge;
+      w = Math.round(h * aspectRatio);
+    } else {
+      w = tier.shortEdge;
+      h = Math.round(w / aspectRatio);
+    }
+    // Ensure even dimensions for video codecs
+    w = w - (w % 2);
+    h = h - (h % 2);
+    presets[tier.key] = { label: `${tier.label} (${w}×${h})`, width: w, height: h };
+  }
+  return presets;
+}
+
+/** Static 16:9 presets for backwards compatibility */
 export const RESOLUTION_PRESETS: Record<string, { label: string; width: number; height: number }> = {
   '720p':  { label: '720p HD',       width: 1280,  height: 720  },
   '1080p': { label: '1080p Full HD', width: 1920,  height: 1080 },

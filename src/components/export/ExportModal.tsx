@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useMemo } from 'react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { useTimelineStore } from '@/store/useTimelineStore';
@@ -11,6 +11,7 @@ import { FFmpegWorker } from '@/engine/ffmpeg/FFmpegWorker';
 import type { Clip, Track } from '@/store/types';
 import {
   RESOLUTION_PRESETS,
+  getResolutionPresets,
   FRAME_RATE_OPTIONS,
   QUALITY_PRESETS_MAP,
   DEFAULT_EXPORT_SETTINGS,
@@ -29,9 +30,10 @@ const RESOLUTION_DEFAULT_BITRATE: Record<string, string> = {
 
 function deriveDefaultSettings(): ExportSettings {
   const { settings } = useProjectStore.getState();
+  const dynPresets = getResolutionPresets(settings.width, settings.height);
   let bestKey = DEFAULT_EXPORT_SETTINGS.resolutionKey;
   let bestDiff = Infinity;
-  for (const [key, preset] of Object.entries(RESOLUTION_PRESETS)) {
+  for (const [key, preset] of Object.entries(dynPresets)) {
     const diff = Math.abs(preset.width - settings.width) + Math.abs(preset.height - settings.height);
     if (diff < bestDiff) {
       bestDiff = diff;
@@ -215,6 +217,12 @@ export function ExportModal({ onClose }: ExportModalProps) {
   const abortRef       = useRef<AbortController | null>(null);
   const exportStartRef = useRef<number>(0);
 
+  const settings = useProjectStore((s) => s.settings);
+  const dynPresets = useMemo(
+    () => getResolutionPresets(settings.width, settings.height),
+    [settings.width, settings.height]
+  );
+
   const updateSetting = <K extends keyof ExportSettings>(key: K, value: ExportSettings[K]) => {
     setExportSettings((prev) => ({ ...prev, [key]: value }));
   };
@@ -289,19 +297,11 @@ export function ExportModal({ onClose }: ExportModalProps) {
         return;
       }
 
-      // Resolve export dimensions from selected resolution preset
-      const resPre = RESOLUTION_PRESETS[exportSettings.resolutionKey] ?? RESOLUTION_PRESETS['1080p'];
-      // Maintain project aspect ratio: scale to fit within chosen resolution
-      const projectAR = settings.width / settings.height;
-      const targetAR  = resPre.width / resPre.height;
-      let exportW: number, exportH: number;
-      if (projectAR >= targetAR) {
-        exportW = resPre.width;
-        exportH = Math.round(resPre.width / projectAR);
-      } else {
-        exportH = resPre.height;
-        exportW = Math.round(resPre.height * projectAR);
-      }
+      // Resolve export dimensions from dynamic resolution preset (matches project aspect ratio)
+      const currentPresets = getResolutionPresets(settings.width, settings.height);
+      const resPre = currentPresets[exportSettings.resolutionKey] ?? currentPresets['1080p'];
+      let exportW = resPre.width;
+      let exportH = resPre.height;
       // Ensure even dimensions
       exportW = exportW - (exportW % 2);
       exportH = exportH - (exportH % 2);
@@ -490,7 +490,7 @@ export function ExportModal({ onClose }: ExportModalProps) {
   const aBitrate = parseInt(exportSettings.audioBitrate) || 192;
   const estSizeMB = estimateFileSize(totalDuration, vBitrate, aBitrate);
 
-  const resPre = RESOLUTION_PRESETS[exportSettings.resolutionKey];
+  const resPre = dynPresets[exportSettings.resolutionKey];
 
   // Shared Tailwind classes
   const selectCls = 'w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-blue-500 transition-colors appearance-none cursor-pointer [&>option]:bg-[var(--bg-tertiary)] [&>option]:text-[var(--text-primary)]';
@@ -552,8 +552,8 @@ export function ExportModal({ onClose }: ExportModalProps) {
                 }}
                 className={selectCls}
               >
-                {Object.entries(RESOLUTION_PRESETS).map(([key, p]) => (
-                  <option key={key} value={key}>{p.label} ({p.width}×{p.height})</option>
+                {Object.entries(dynPresets).map(([key, p]) => (
+                  <option key={key} value={key}>{p.label}</option>
                 ))}
               </select>
             </div>

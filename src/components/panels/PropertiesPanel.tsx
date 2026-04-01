@@ -401,11 +401,22 @@ export function PropertiesPanel() {
               <button
                 key={preset.id}
                 onClick={() => {
+                  const dur = clipSourceDuration;
+                  const effectLen = Math.min(1, dur * 0.3);
+                  let startTime = 0;
+                  let endTime = dur;
+                  if (preset.id === 'fade-in') {
+                    startTime = 0;
+                    endTime = effectLen;
+                  } else if (preset.id === 'fade-out') {
+                    startTime = dur - effectLen;
+                    endTime = dur;
+                  }
                   addAnimation(clip.id, {
                     presetId: preset.id,
                     presetLabel: preset.label,
-                    startTime: 0,
-                    endTime: clipSourceDuration,
+                    startTime,
+                    endTime,
                   });
                 }}
                 className="px-2 py-1 rounded-lg text-xs font-medium bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] btn-press transition-colors"

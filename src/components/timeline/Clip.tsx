@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useState, useEffect, useRef } from 'react';
-import { useTimelineStore } from '@/store/useTimelineStore';
+import { useTimelineStore, suppressHistory, restoreHistorySuppression } from '@/store/useTimelineStore';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useMediaStore } from '@/store/useMediaStore';
 import { ClipContextMenu } from './ClipContextMenu';
@@ -155,6 +155,18 @@ export function Clip({ clip, trackColor, pixelsPerSecond }: ClipProps) {
     const origTrackId = clip.trackId;
     const edges = getSnapEdges(clip.id);
     const snapThreshold = SNAP_THRESHOLD_PX / pixelsPerSecond;
+    let rafId = 0;
+    let pendingMove: { trackId: string; startTime: number } | null = null;
+
+    // Cache track element rects once at drag start
+    const trackRects: { id: string; top: number; bottom: number }[] = [];
+    document.querySelectorAll('[data-track-id]').forEach((el) => {
+      const rect = el.getBoundingClientRect();
+      trackRects.push({ id: el.getAttribute('data-track-id') || '', top: rect.top, bottom: rect.bottom });
+    });
+
+    suppressHistory();
+    const before = useTimelineStore.getState()._snapshotTimeline();
 
     const onMove = (me: MouseEvent) => {
       const deltaX = me.clientX - startX;
@@ -162,12 +174,10 @@ export function Clip({ clip, trackColor, pixelsPerSecond }: ClipProps) {
       let newStartTime = Math.max(0, startTime + deltaTime);
       const clipEnd = newStartTime + clip.duration;
 
-      // Snap start edge
       const snappedStart = snapTime(newStartTime, edges, snapThreshold);
       if (snappedStart !== newStartTime) {
         newStartTime = snappedStart;
       } else {
-        // Snap end edge
         const snappedEnd = snapTime(clipEnd, edges, snapThreshold);
         if (snappedEnd !== clipEnd) {
           newStartTime = snappedEnd - clip.duration;
@@ -175,33 +185,53 @@ export function Clip({ clip, trackColor, pixelsPerSecond }: ClipProps) {
       }
 
       if (clip.groupId) {
-        // Move all clips in the group together (no cross-track for groups)
-        moveGroupClips(clip.groupId, clip.id, Math.max(0, newStartTime));
+        pendingMove = { trackId: origTrackId, startTime: Math.max(0, newStartTime) };
       } else {
-        // Cross-track drag: find track under cursor via data-track-id
         let targetTrackId = origTrackId;
         if (Math.abs(me.clientY - startY) > 15) {
-          const trackEls = document.querySelectorAll('[data-track-id]');
-          for (const el of trackEls) {
-            const rect = el.getBoundingClientRect();
-            if (me.clientY >= rect.top && me.clientY <= rect.bottom) {
-              targetTrackId = el.getAttribute('data-track-id') || origTrackId;
+          for (const tr of trackRects) {
+            if (me.clientY >= tr.top && me.clientY <= tr.bottom) {
+              targetTrackId = tr.id;
               break;
             }
           }
         }
-        moveClip(clip.id, targetTrackId, Math.max(0, newStartTime));
+        pendingMove = { trackId: targetTrackId, startTime: Math.max(0, newStartTime) };
+      }
+
+      if (!rafId) {
+        rafId = requestAnimationFrame(() => {
+          if (pendingMove) {
+            if (clip.groupId) {
+              moveGroupClips(clip.groupId, clip.id, pendingMove.startTime);
+            } else {
+              moveClip(clip.id, pendingMove.trackId, pendingMove.startTime);
+            }
+          }
+          rafId = 0;
+        });
       }
     };
 
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      if (rafId) cancelAnimationFrame(rafId);
+      if (pendingMove) {
+        if (clip.groupId) {
+          moveGroupClips(clip.groupId, clip.id, pendingMove.startTime);
+        } else {
+          moveClip(clip.id, pendingMove.trackId, pendingMove.startTime);
+        }
+      }
+      restoreHistorySuppression();
+      const after = useTimelineStore.getState()._snapshotTimeline();
+      useTimelineStore.getState()._pushHistory?.('moveClip', before, after);
     };
 
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
-  }, [clip.id, clip.startTime, clip.trackId, clip.groupId, selectClip, moveClip, moveGroupClips, pixelsPerSecond]);
+  }, [clip.id, clip.startTime, clip.trackId, clip.groupId, clip.duration, selectClip, moveClip, moveGroupClips, pixelsPerSecond]);
 
   const handleTrimLeft = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -215,30 +245,42 @@ export function Clip({ clip, trackColor, pixelsPerSecond }: ClipProps) {
     const origInPoint = clip.inPoint;
     const edges = getSnapEdges(clip.id);
     const snapThreshold = SNAP_THRESHOLD_PX / pixelsPerSecond;
+    let rafId = 0;
+    let pendingUpdate: Record<string, number> | null = null;
+
+    suppressHistory();
+    const before = useTimelineStore.getState()._snapshotTimeline();
 
     const onMove = (me: MouseEvent) => {
       const deltaX = me.clientX - startX;
       const deltaTime = deltaX / pixelsPerSecond;
       let newStartTime = Math.max(0, origStartTime + deltaTime);
-
-      // Snap left edge to nearby clip edges
       newStartTime = snapTime(newStartTime, edges, snapThreshold);
 
       const trimAmount = newStartTime - origStartTime;
       const newDuration = origDuration - trimAmount;
+      const newInPoint = origInPoint + trimAmount / clip.speed;
 
-      if (newDuration >= MIN_CLIP_DURATION) {
-        updateClip(clip.id, {
-          startTime: newStartTime,
-          duration: newDuration,
-          inPoint: origInPoint + trimAmount / clip.speed,
-        });
+      if (newDuration >= MIN_CLIP_DURATION && newInPoint >= 0) {
+        pendingUpdate = { startTime: newStartTime, duration: newDuration, inPoint: newInPoint };
+        if (!rafId) {
+          rafId = requestAnimationFrame(() => {
+            if (pendingUpdate) updateClip(clip.id, pendingUpdate);
+            rafId = 0;
+          });
+        }
       }
     };
 
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      if (rafId) cancelAnimationFrame(rafId);
+      if (pendingUpdate) updateClip(clip.id, pendingUpdate);
+      restoreHistorySuppression();
+      // Push single history entry for entire trim operation
+      const after = useTimelineStore.getState()._snapshotTimeline();
+      useTimelineStore.getState()._pushHistory?.('trimLeft', before, after);
     };
 
     document.addEventListener('mousemove', onMove);
@@ -258,34 +300,43 @@ export function Clip({ clip, trackColor, pixelsPerSecond }: ClipProps) {
     const edges = getSnapEdges(clip.id);
     const snapThreshold = SNAP_THRESHOLD_PX / pixelsPerSecond;
 
-    // Get source media duration to prevent extending beyond it
     const el = useMediaStore.getState().elements[clip.assetId];
-    const sourceDuration = el instanceof HTMLVideoElement ? el.duration : Infinity;
+    const sourceDuration = (el instanceof HTMLVideoElement || el instanceof HTMLAudioElement) ? el.duration : Infinity;
+    let rafId = 0;
+    let pendingUpdate: Record<string, number> | null = null;
+
+    suppressHistory();
+    const before = useTimelineStore.getState()._snapshotTimeline();
 
     const onMove = (me: MouseEvent) => {
       const deltaX = me.clientX - startX;
       const deltaTime = deltaX / pixelsPerSecond;
       let newEndTime = origStartTime + origDuration + deltaTime;
-
-      // Snap right edge to nearby clip edges
       newEndTime = snapTime(newEndTime, edges, snapThreshold);
 
       const newDuration = Math.max(MIN_CLIP_DURATION, newEndTime - origStartTime);
       const durationDelta = newDuration - origDuration;
       const newOutPoint = origOutPoint + durationDelta / clip.speed;
 
-      // Don't extend beyond source media duration
-      if (newOutPoint > sourceDuration) return;
+      if (newOutPoint > sourceDuration || newOutPoint < 0) return;
 
-      updateClip(clip.id, {
-        duration: newDuration,
-        outPoint: newOutPoint,
-      });
+      pendingUpdate = { duration: newDuration, outPoint: newOutPoint };
+      if (!rafId) {
+        rafId = requestAnimationFrame(() => {
+          if (pendingUpdate) updateClip(clip.id, pendingUpdate);
+          rafId = 0;
+        });
+      }
     };
 
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      if (rafId) cancelAnimationFrame(rafId);
+      if (pendingUpdate) updateClip(clip.id, pendingUpdate);
+      restoreHistorySuppression();
+      const after = useTimelineStore.getState()._snapshotTimeline();
+      useTimelineStore.getState()._pushHistory?.('trimRight', before, after);
     };
 
     document.addEventListener('mousemove', onMove);

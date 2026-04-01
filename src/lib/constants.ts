@@ -59,7 +59,7 @@ export function getExportDimensions(
   }
 }
 
-export const ANIMATION_SUBLANE_HEIGHT = 24;
+export const ANIMATION_SUBLANE_HEIGHT = 32;
 
 export const LAYOUT_PRESETS = {
   Default:  { leftPanelWidth: 328, rightPanelWidth: 260, timelineHeight: 300 },

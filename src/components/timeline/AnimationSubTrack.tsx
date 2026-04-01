@@ -102,27 +102,33 @@ export function AnimationSubTrack({ clip, pixelsPerSecond }: AnimationSubTrackPr
 
   return (
     <div
-      className="absolute left-0 right-0"
+      className="absolute inset-0"
       style={{
-        bottom: 0,
         height: ANIMATION_SUBLANE_HEIGHT,
+        borderTop: '1px solid var(--border-color)',
+        background: 'var(--hover-bg)',
       }}
     >
+      {/* FX label */}
+      <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] font-bold text-[var(--text-muted)] opacity-40 pointer-events-none select-none tracking-wider">
+        FX
+      </span>
+
       {animations.map((anim) => {
         const left = (clip.startTime + anim.startTime) * pixelsPerSecond;
-        const width = Math.max(8, (anim.endTime - anim.startTime) * pixelsPerSecond);
+        const width = Math.max(12, (anim.endTime - anim.startTime) * pixelsPerSecond);
         const color = ANIM_COLORS[anim.presetId] || '#6b7280';
 
         return (
           <div
             key={anim.id}
-            className="absolute top-0.5 rounded-sm flex items-center overflow-hidden select-none group"
+            className="absolute top-1 rounded-md flex items-center overflow-hidden select-none group"
             style={{
               left,
               width,
-              height: ANIMATION_SUBLANE_HEIGHT - 4,
-              backgroundColor: `${color}30`,
-              border: `1px solid ${color}80`,
+              height: ANIMATION_SUBLANE_HEIGHT - 8,
+              backgroundColor: `${color}25`,
+              border: `1px solid ${color}60`,
               cursor: 'grab',
             }}
             onMouseDown={(e) => onMouseDown(e, anim, 'move')}
@@ -130,19 +136,19 @@ export function AnimationSubTrack({ clip, pixelsPerSecond }: AnimationSubTrackPr
           >
             {/* Left trim handle */}
             <div
-              className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-white/20 z-10"
+              className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-white/20 z-10 rounded-l-md"
               onMouseDown={(e) => { e.stopPropagation(); onMouseDown(e, anim, 'trim-left'); }}
             />
             {/* Label */}
             <span
-              className="text-[9px] font-medium px-1.5 truncate pointer-events-none"
+              className="text-[10px] font-medium px-2 truncate pointer-events-none"
               style={{ color }}
             >
               {anim.presetLabel}
             </span>
             {/* Right trim handle */}
             <div
-              className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-white/20 z-10"
+              className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-white/20 z-10 rounded-r-md"
               onMouseDown={(e) => { e.stopPropagation(); onMouseDown(e, anim, 'trim-right'); }}
             />
           </div>
