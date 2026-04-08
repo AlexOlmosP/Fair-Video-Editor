@@ -1,0 +1,31 @@
+appId: com.frameforge.videoeditor
+productName: FrameForge Video Editor
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist-electron/**/*
+  - out/**/*
+  - package.json
+extraMetadata:
+  main: dist-electron/main.js
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.ico
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  icon: build/icon.icns
+asar: true
+asarUnpack:
+  - out/ffmpeg/**

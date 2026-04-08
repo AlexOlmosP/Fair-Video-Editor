@@ -6,7 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "electron:build-ts": "tsc -p electron/tsconfig.json",
+    "electron:dev": "concurrently \"next dev --turbopack --port 3003\" \"wait-on http://localhost:3003 && cross-env DEV_PORT=3003 electron dist-electron/main.js\"",
+    "electron:build": "cross-env BUILD_TARGET=electron next build && npm run electron:build-ts",
+    "electron:pack": "npm run electron:build && electron-builder --win",
+    "electron:start": "electron dist-electron/main.js"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
@@ -29,9 +34,14 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/uuid": "^10.0.0",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^41.1.1",
+    "electron-builder": "^26.8.1",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wait-on": "^9.0.4"
   }
 }

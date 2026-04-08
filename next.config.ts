@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Static export for Electron desktop builds
+  ...(process.env.BUILD_TARGET === 'electron' ? { output: 'export' } : {}),
   // Required for FFmpeg.wasm — SharedArrayBuffer needs these headers
   async headers() {
     return [

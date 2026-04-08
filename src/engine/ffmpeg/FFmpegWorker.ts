@@ -28,12 +28,14 @@ export class FFmpegWorker {
     if (this.loading) return this.loading;
 
     this.loading = (async () => {
+      // Both web and Electron: load FFmpeg core from CDN as blob URLs.
+      // In Electron the main process injects COOP/COEP headers on all
+      // responses, allowing SharedArrayBuffer to work the same as on the web.
       const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+      const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
+      const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
 
-      await this.ffmpeg.load({
-        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-      });
+      await this.ffmpeg.load({ coreURL, wasmURL });
 
       if (FFMPEG_CONFIG.log) {
         this.ffmpeg.on('log', ({ message }) => {
