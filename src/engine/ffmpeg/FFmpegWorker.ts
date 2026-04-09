@@ -28,10 +28,15 @@ export class FFmpegWorker {
     if (this.loading) return this.loading;
 
     this.loading = (async () => {
-      // Both web and Electron: load FFmpeg core from CDN as blob URLs.
-      // In Electron the main process injects COOP/COEP headers on all
-      // responses, allowing SharedArrayBuffer to work the same as on the web.
-      const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+      // Detect Electron — load WASM from bundled local files for offline-first.
+      // Web — load from CDN. Both convert to blob URLs (required by FFmpeg worker).
+      const isElectron = typeof window !== 'undefined' &&
+        (window as unknown as Record<string, unknown>).electronAPI !== undefined;
+
+      const baseURL = isElectron
+        ? '/ffmpeg' // Served from public/ffmpeg/ via app:// protocol
+        : 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+
       const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
       const wasmURL = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
 

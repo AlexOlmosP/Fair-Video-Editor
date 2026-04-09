@@ -119,45 +119,81 @@ async function mixAudioTracks(
 
   if (candidates.length === 0) return null;
 
+  // Use a temporary AudioContext purely for decoding, separate from the
+  // OfflineAudioContext used for mixing. This prevents decode failures
+  // (e.g. mp4 audio extraction errors) from corrupting the mix context.
+  const decodeCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+
+  // Cache decoded buffers by asset ID — handles clips that share the same source
+  const decodedCache = new Map<string, AudioBuffer | null>();
+
+  async function decodeAsset(assetId: string, src: string): Promise<AudioBuffer | null> {
+    if (decodedCache.has(assetId)) return decodedCache.get(assetId)!;
+    try {
+      const response = await fetch(src);
+      if (!response.ok) {
+        decodedCache.set(assetId, null);
+        return null;
+      }
+      const arrayBuf = await response.arrayBuffer();
+      // decodeAudioData transfers the ArrayBuffer — must use a fresh copy each call
+      const buf = await decodeCtx.decodeAudioData(arrayBuf.slice(0));
+      decodedCache.set(assetId, buf);
+      return buf;
+    } catch {
+      decodedCache.set(assetId, null);
+      return null;
+    }
+  }
+
+  // Pre-decode all assets in parallel for performance
+  const uniqueAssets = new Map<string, string>();
+  for (const clip of candidates) {
+    const el = elements[clip.assetId] as HTMLVideoElement | HTMLAudioElement;
+    if (el?.src && !uniqueAssets.has(clip.assetId)) {
+      uniqueAssets.set(clip.assetId, el.src);
+    }
+  }
+  await Promise.all(
+    Array.from(uniqueAssets.entries()).map(([id, src]) => decodeAsset(id, src))
+  );
+
+  // Close decode context — we only need the decoded buffers now
+  await decodeCtx.close();
+
+  // Build the mixing context fresh, with all clips scheduled
   const totalSamples = Math.max(1, Math.ceil(totalDuration * sampleRate));
-  const offlineCtx   = new OfflineAudioContext(2, totalSamples, sampleRate);
+  const offlineCtx = new OfflineAudioContext(2, totalSamples, sampleRate);
 
   let hasAudio = false;
 
   for (const clip of candidates) {
-    const el = elements[clip.assetId] as HTMLVideoElement | HTMLAudioElement;
+    const audioBuf = decodedCache.get(clip.assetId);
+    if (!audioBuf || audioBuf.numberOfChannels === 0 || audioBuf.duration === 0) continue;
+
     try {
-      const response = await fetch(el.src);
-      if (!response.ok) continue;
-
-      const arrayBuf = await response.arrayBuffer();
-      let audioBuf: AudioBuffer;
-      try {
-        audioBuf = await offlineCtx.decodeAudioData(arrayBuf);
-      } catch {
-        continue; // Video has no audio track or codec is unsupported
-      }
-
-      if (audioBuf.numberOfChannels === 0 || audioBuf.duration === 0) continue;
-
       const source = offlineCtx.createBufferSource();
-      source.buffer        = audioBuf;
-      source.playbackRate.value = Math.max(0.0625, Math.min(16, clip.speed));
+      source.buffer = audioBuf;
+      const speed = Math.max(0.0625, Math.min(16, clip.speed || 1));
+      source.playbackRate.value = speed;
 
       const gain = offlineCtx.createGain();
       gain.gain.value = Math.max(0, Math.min(2, clip.volume));
       source.connect(gain);
       gain.connect(offlineCtx.destination);
 
-      // Timeline position → inPoint offset → duration in source time
-      source.start(
-        Math.max(0, clip.startTime),
-        Math.max(0, clip.inPoint),
-        clip.duration * clip.speed,
-      );
+      // Clamp inPoint to source bounds, clamp playback duration so we never overflow
+      const safeInPoint = Math.max(0, Math.min(clip.inPoint || 0, audioBuf.duration));
+      const requestedDur = (clip.duration || 0) * speed;
+      const remainingSource = audioBuf.duration - safeInPoint;
+      const playDur = Math.max(0, Math.min(requestedDur, remainingSource));
+      if (playDur <= 0) continue;
+
+      source.start(Math.max(0, clip.startTime), safeInPoint, playDur);
       hasAudio = true;
-    } catch {
-      // Blob URL inaccessible or other transient error — skip silently
+    } catch (err) {
+      // Schedule failure — skip this clip but continue with others
+      console.warn('[Export] Failed to schedule audio clip', clip.id, err);
     }
   }
 

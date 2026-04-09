@@ -259,7 +259,7 @@ export function Clip({ clip, trackColor, pixelsPerSecond }: ClipProps) {
 
       const trimAmount = newStartTime - origStartTime;
       const newDuration = origDuration - trimAmount;
-      const newInPoint = origInPoint + trimAmount / clip.speed;
+      const newInPoint = origInPoint + trimAmount * clip.speed;
 
       if (newDuration >= MIN_CLIP_DURATION && newInPoint >= 0) {
         pendingUpdate = { startTime: newStartTime, duration: newDuration, inPoint: newInPoint };
@@ -316,7 +316,7 @@ export function Clip({ clip, trackColor, pixelsPerSecond }: ClipProps) {
 
       const newDuration = Math.max(MIN_CLIP_DURATION, newEndTime - origStartTime);
       const durationDelta = newDuration - origDuration;
-      const newOutPoint = origOutPoint + durationDelta / clip.speed;
+      const newOutPoint = origOutPoint + durationDelta * clip.speed;
 
       if (newOutPoint > sourceDuration || newOutPoint < 0) return;
 
