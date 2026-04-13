@@ -503,7 +503,10 @@ export function CanvasInteraction({ canvasRef, measureCanvasRef }: CanvasInterac
 
         let finalScaleX: number, finalScaleY: number;
         if (locked) {
-          const scaleDelta = (dxNorm + dyNorm) / 2;
+          // Use whichever axis the user dragged further (signed) so uniform
+          // scaling responds at full strength to mostly-horizontal or
+          // mostly-vertical drags, instead of being halved by averaging.
+          const scaleDelta = Math.abs(dxNorm) >= Math.abs(dyNorm) ? dxNorm : dyNorm;
           const newScale = Math.max(0.05, Math.min(5, drag.startScaleX + scaleDelta));
           finalScaleX = newScale;
           finalScaleY = newScale;

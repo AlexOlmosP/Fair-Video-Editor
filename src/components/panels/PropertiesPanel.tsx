@@ -25,6 +25,20 @@ const PIP_PRESETS = [
   { label: 'Center', x: 0, y: 0, scale: 1 },
 ] as const;
 
+// Multi-video layout presets — build split-screen / quadrant compositions
+// Positions are fractions of canvas width/height from center (0,0 = center)
+const LAYOUT_PRESETS = [
+  { label: 'Full',        x: 0,     y: 0,     scale: 1   },
+  { label: 'Left Half',   x: -0.25, y: 0,     scale: 0.5 },
+  { label: 'Right Half',  x:  0.25, y: 0,     scale: 0.5 },
+  { label: 'Top Half',    x: 0,     y: -0.25, scale: 0.5 },
+  { label: 'Bottom Half', x: 0,     y:  0.25, scale: 0.5 },
+  { label: 'Quad TL',     x: -0.25, y: -0.25, scale: 0.5 },
+  { label: 'Quad TR',     x:  0.25, y: -0.25, scale: 0.5 },
+  { label: 'Quad BL',     x: -0.25, y:  0.25, scale: 0.5 },
+  { label: 'Quad BR',     x:  0.25, y:  0.25, scale: 0.5 },
+] as const;
+
 // ─── Crop/Main constants ───────────────────────────────────────────────────
 
 const DEFAULT_CROP = { top: 0, right: 0, bottom: 0, left: 0 };
@@ -262,7 +276,7 @@ export function PropertiesPanel() {
           {/* Scale */}
           <div>
             <label className="block text-[10px] text-[var(--text-muted)] font-medium mb-1">Scale</label>
-            <input type="range" min={0.1} max={3} step={0.05} value={firstClip?.scale.x ?? 1}
+            <input type="range" min={0.1} max={5} step={0.05} value={firstClip?.scale.x ?? 1}
               onChange={(e) => updateAllSelected({ scale: { x: +e.target.value, y: +e.target.value } })}
               className="w-full" />
             <span className="text-[10px] text-[var(--text-muted)]">{((firstClip?.scale.x ?? 1) * 100).toFixed(0)}%</span>
@@ -470,6 +484,32 @@ export function PropertiesPanel() {
                     });
                   }}
                   className="px-2 py-1 rounded-lg text-xs font-medium bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] btn-press transition-colors"
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
+          </div>
+        </PropertySection>
+
+        {/* Layouts — split-screen and quadrant compositions */}
+        <PropertySection title="Layouts">
+          <p className="text-[10px] text-[var(--text-muted)] mb-1.5">
+            Apply to each clip to build multi-video compositions.
+          </p>
+          <div className="flex gap-1 flex-wrap">
+            {LAYOUT_PRESETS.map((preset) => {
+              const settings = useProjectStore.getState().settings;
+              return (
+                <button
+                  key={preset.label}
+                  onClick={() => {
+                    updateClip(clip.id, {
+                      position: { x: preset.x * settings.width, y: preset.y * settings.height },
+                      scale: { x: preset.scale, y: preset.scale },
+                    });
+                  }}
+                  className="px-2 py-1 rounded-lg text-[11px] font-medium bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] btn-press transition-colors"
                 >
                   {preset.label}
                 </button>

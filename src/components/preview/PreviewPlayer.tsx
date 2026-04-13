@@ -785,7 +785,7 @@ function drawUIOverlays(
       ctx.setLineDash([]);
       ctx.strokeRect(clipCx - drawW/2, clipCy - drawH/2, drawW, drawH);
 
-      const hs = 12;
+      const hs = 16;
       const corners = [
         [clipCx - drawW/2, clipCy - drawH/2],
         [clipCx + drawW/2, clipCy - drawH/2],

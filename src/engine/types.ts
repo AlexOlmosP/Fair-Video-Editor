@@ -1,6 +1,6 @@
 /** Shared types for the video processing engine */
 
-export type ExportFormat = 'mp4' | 'webm';
+export type ExportFormat = 'mp4' | 'webm' | 'png' | 'jpg';
 export type ExportCodec = 'libx264' | 'libvpx-vp9';
 
 export interface ExportPreset {

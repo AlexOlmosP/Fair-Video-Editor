@@ -6,7 +6,7 @@ import gsap from 'gsap';
 import { useTimelineStore } from '@/store/useTimelineStore';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useMediaStore } from '@/store/useMediaStore';
-import { getTimelineDuration, renderExportFrames } from '@/engine/export/canvasExporter';
+import { getTimelineDuration, renderExportFrames, renderFrameToCanvasExport } from '@/engine/export/canvasExporter';
 import { FFmpegWorker } from '@/engine/ffmpeg/FFmpegWorker';
 import type { Clip, Track } from '@/store/types';
 import {
@@ -211,6 +211,20 @@ function getFormatConfig(format: ExportFormat): { codec: ExportCodec; ext: strin
         mime: 'video/webm',
         outputCodecArgs: ['-c:v', 'libvpx-vp9', '-row-mt', '1'],
       };
+    case 'png':
+      return {
+        codec: 'libx264',
+        ext: 'png',
+        mime: 'image/png',
+        outputCodecArgs: [],
+      };
+    case 'jpg':
+      return {
+        codec: 'libx264',
+        ext: 'jpg',
+        mime: 'image/jpeg',
+        outputCodecArgs: [],
+      };
     case 'mp4':
     default:
       return {
@@ -315,7 +329,7 @@ export function ExportModal({ onClose }: ExportModalProps) {
       const { setIsPlaying } = useTimelineStore.getState();
       setIsPlaying(false);
 
-      const { clips, tracks, trackOrder } = useTimelineStore.getState();
+      const { clips, tracks, trackOrder, playheadTime } = useTimelineStore.getState();
       const { elements }  = useMediaStore.getState();
       const { settings }  = useProjectStore.getState();
 
@@ -323,6 +337,57 @@ export function ExportModal({ onClose }: ExportModalProps) {
       if (clipList.length === 0) {
         setExportStage('No clips to export');
         setIsExporting(false);
+        return;
+      }
+
+      // ── Image export (PNG/JPG) — short-circuit the video pipeline ───────
+      if (exportSettings.format === 'png' || exportSettings.format === 'jpg') {
+        setExportStage('Rendering frame...');
+        setExportProgress(20);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = settings.width;
+        canvas.height = settings.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Failed to create 2D context for image export');
+
+        renderFrameToCanvasExport(
+          ctx,
+          settings.width, settings.height,
+          settings.width, settings.height,
+          settings.backgroundColor,
+          playheadTime,
+          clips, tracks, trackOrder,
+          elements as Record<string, HTMLVideoElement | HTMLImageElement | HTMLAudioElement>,
+        );
+
+        setExportProgress(70);
+        const mime = exportSettings.format === 'png' ? 'image/png' : 'image/jpeg';
+        const ext  = exportSettings.format === 'png' ? 'png' : 'jpg';
+        const quality = exportSettings.format === 'jpg' ? 0.92 : undefined;
+
+        const blob = await new Promise<Blob>((resolve, reject) => {
+          canvas.toBlob(
+            (b) => b ? resolve(b) : reject(new Error('Failed to encode image')),
+            mime,
+            quality,
+          );
+        });
+
+        setExportProgress(95);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${settings.name || 'frame'}.${ext}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        setExportProgress(100);
+        setExportStage('Export complete');
+        setIsExporting(false);
+        setTimeout(() => onClose(), 600);
         return;
       }
 
@@ -527,6 +592,7 @@ export function ExportModal({ onClose }: ExportModalProps) {
   const estSizeMB = estimateFileSize(totalDuration, vBitrate, aBitrate);
 
   const resPre = dynPresets[exportSettings.resolutionKey];
+  const isImageExport = exportSettings.format === 'png' || exportSettings.format === 'jpg';
 
   // Shared Tailwind classes
   const selectCls = 'w-full rounded-lg border border-[var(--border-color)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-blue-500 transition-colors appearance-none cursor-pointer [&>option]:bg-[var(--bg-tertiary)] [&>option]:text-[var(--text-primary)]';
@@ -571,31 +637,42 @@ export function ExportModal({ onClose }: ExportModalProps) {
               >
                 <option value="mp4">MP4 (H.264 + AAC)</option>
                 <option value="webm">WebM (VP9 + Opus)</option>
+                <option value="png">PNG Image (current frame)</option>
+                <option value="jpg">JPG Image (current frame)</option>
               </select>
             </div>
-            <div>
-              <label className={labelCls}>Resolution</label>
-              <select
-                value={exportSettings.resolutionKey}
-                onChange={(e) => {
-                  const key = e.target.value;
-                  updateSetting('resolutionKey', key);
-                  const autoBitrate = RESOLUTION_DEFAULT_BITRATE[key];
-                  if (autoBitrate) {
-                    updateSetting('videoBitrate', autoBitrate);
-                    setCustomBitrateMbps(String(parseInt(autoBitrate) / 1000));
-                  }
-                }}
-                className={selectCls}
-              >
-                {Object.entries(dynPresets).map(([key, p]) => (
-                  <option key={key} value={key}>{p.label}</option>
-                ))}
-              </select>
-            </div>
+            {!isImageExport && (
+              <div>
+                <label className={labelCls}>Resolution</label>
+                <select
+                  value={exportSettings.resolutionKey}
+                  onChange={(e) => {
+                    const key = e.target.value;
+                    updateSetting('resolutionKey', key);
+                    const autoBitrate = RESOLUTION_DEFAULT_BITRATE[key];
+                    if (autoBitrate) {
+                      updateSetting('videoBitrate', autoBitrate);
+                      setCustomBitrateMbps(String(parseInt(autoBitrate) / 1000));
+                    }
+                  }}
+                  className={selectCls}
+                >
+                  {Object.entries(dynPresets).map(([key, p]) => (
+                    <option key={key} value={key}>{p.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
-          {/* Row 2: Frame Rate + Quality */}
+          {isImageExport && (
+            <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-xs text-white/60">
+              Exports the current playhead frame at the project canvas resolution ({settings.width}×{settings.height}).
+            </div>
+          )}
+
+          {/* Row 2: Frame Rate + Quality — hidden for image export */}
+          {!isImageExport && (
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>Frame Rate</label>
@@ -622,8 +699,10 @@ export function ExportModal({ onClose }: ExportModalProps) {
               </select>
             </div>
           </div>
+          )}
 
-          {/* Row 3: Bitrate Mode + Custom Bitrate */}
+          {/* Row 3: Bitrate Mode + Custom Bitrate — hidden for image export */}
+          {!isImageExport && (
           <div>
             <label className={labelCls}>Bitrate Control</label>
             <div className="flex items-center gap-2">
@@ -663,15 +742,18 @@ export function ExportModal({ onClose }: ExportModalProps) {
               {exportSettings.bitrateMode === 'cbr' ? ' · CBR enforces strict bitrate ceiling' : ' · VBR targets bitrate, varies per scene'}
             </p>
           </div>
+          )}
 
-          {/* Info strip */}
-          <div className="flex items-center gap-4 rounded-lg bg-white/5 px-3 py-2 text-xs text-white/50">
-            <span>Output: {resPre?.width}×{resPre?.height}</span>
-            <span className="text-white/20">|</span>
-            <span>Duration: {totalDuration.toFixed(1)}s</span>
-            <span className="text-white/20">|</span>
-            <span>Est. size: ~{estSizeMB < 1 ? `${(estSizeMB * 1024).toFixed(0)} KB` : `${estSizeMB.toFixed(1)} MB`}</span>
-          </div>
+          {/* Info strip — hidden for image export */}
+          {!isImageExport && (
+            <div className="flex items-center gap-4 rounded-lg bg-white/5 px-3 py-2 text-xs text-white/50">
+              <span>Output: {resPre?.width}×{resPre?.height}</span>
+              <span className="text-white/20">|</span>
+              <span>Duration: {totalDuration.toFixed(1)}s</span>
+              <span className="text-white/20">|</span>
+              <span>Est. size: ~{estSizeMB < 1 ? `${(estSizeMB * 1024).toFixed(0)} KB` : `${estSizeMB.toFixed(1)} MB`}</span>
+            </div>
+          )}
         </div>
 
         {/* ── Progress ──────────────────────────────────────────────────── */}
